@@ -55,7 +55,7 @@ RUN $APT_INSTALL python3.7 python3.7-dev
 
 RUN wget -O $HOME/get-pip.py https://bootstrap.pypa.io/get-pip.py --no-check-certificate
 
-RUN python3.7 $HOME/get-pip.py --proxy="http://proxy.usz.ch:8080"
+RUN python3.7 $HOME/get-pip.py --trusted-host pypi.org --trusted-host files.pythonhosted.org 
 
 RUN ln -s /usr/bin/python3.7 /usr/local/bin/python3
 RUN ln -s /usr/bin/python3.7 /usr/local/bin/python
