@@ -53,43 +53,43 @@ RUN apt-get update
 
 RUN $APT_INSTALL python3.7 python3.7-dev
 
-# RUN wget -O $HOME/get-pip.py https://bootstrap.pypa.io/get-pip.py
+RUN wget -O $HOME/get-pip.py https://bootstrap.pypa.io/get-pip.py
 
-# RUN python3.7 $HOME/get-pip.py
+RUN python3.7 $HOME/get-pip.py
 
-# RUN ln -s /usr/bin/python3.7 /usr/local/bin/python3
-# RUN ln -s /usr/bin/python3.7 /usr/local/bin/python
+RUN ln -s /usr/bin/python3.7 /usr/local/bin/python3
+RUN ln -s /usr/bin/python3.7 /usr/local/bin/python
 
-# RUN $PIP_INSTALL setuptools
-# RUN $PIP_INSTALL numpy scipy nltk lmdb cython pydantic pyhocon
+RUN $PIP_INSTALL setuptools
+RUN $PIP_INSTALL numpy scipy nltk lmdb cython pydantic pyhocon
 
-# RUN $PIP_INSTALL torch==1.7.0 torchvision==0.8.0 torchaudio==0.7.0
+RUN $PIP_INSTALL torch==1.7.0 torchvision==0.8.0 torchaudio==0.7.0
 
-# ENV FORCE_CUDA="1"
-# ENV TORCH_CUDA_ARCH_LIST="Pascal;Volta;Turing"
+ENV FORCE_CUDA="1"
+ENV TORCH_CUDA_ARCH_LIST="Pascal;Volta;Turing"
 
-# # RUN $PIP_INSTALL 'git+https://github.com/facebookresearch/detectron2.git'
+# RUN $PIP_INSTALL 'git+https://github.com/facebookresearch/detectron2.git'
 
-# RUN python -m pip uninstall -y pillow pil jpeg libtiff libjpeg-turbo
-# RUN CFLAGS="${CFLAGS} -mavx2" $PIP_INSTALL --force-reinstall --no-binary :all: --compile pillow-simd
+RUN python -m pip uninstall -y pillow pil jpeg libtiff libjpeg-turbo
+RUN CFLAGS="${CFLAGS} -mavx2" $PIP_INSTALL --force-reinstall --no-binary :all: --compile pillow-simd
 
-# RUN $APT_INSTALL libsm6 libxext6 libxrender1
-# RUN $PIP_INSTALL opencv-python-headless
-
-# # WORKDIR $HOME
-# # RUN $GIT_CLONE https://github.com/NVIDIA/apex.git
-# # WORKDIR apex
-# # RUN $PIP_INSTALL -v --global-option="--cpp_ext" --global-option="--cuda_ext" ./
-
-# # WORKDIR $HOME
-# # RUN $GIT_CLONE https://github.com/cocodataset/cocoapi.git
-# # WORKDIR cocoapi/PythonAPI
-# # RUN make
-# # RUN python setup.py build_ext install
+RUN $APT_INSTALL libsm6 libxext6 libxrender1
+RUN $PIP_INSTALL opencv-python-headless
 
 # WORKDIR $HOME
+# RUN $GIT_CLONE https://github.com/NVIDIA/apex.git
+# WORKDIR apex
+# RUN $PIP_INSTALL -v --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 
-# RUN ldconfig
-# RUN apt-get clean
-# RUN apt-get autoremove
-# RUN rm -rf /var/lib/apt/lists/* /tmp/* ~/*
+# WORKDIR $HOME
+# RUN $GIT_CLONE https://github.com/cocodataset/cocoapi.git
+# WORKDIR cocoapi/PythonAPI
+# RUN make
+# RUN python setup.py build_ext install
+
+WORKDIR $HOME
+
+RUN ldconfig
+RUN apt-get clean
+RUN apt-get autoremove
+RUN rm -rf /var/lib/apt/lists/* /tmp/* ~/*
