@@ -7,13 +7,6 @@
 
 FROM nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04
 
-# ENV https_proxy=http://proxy.usz.ch:8080/
-# ENV http_proxy=http://proxy.usz.ch:8080/
-# ENV HTTP_PROXY=http://proxy.usz.ch:8080/
-# ENV HTTPS_PROXY=http://proxy.usz.ch:8080/
-# ENV no_proxy="localhost,localdomain,127.0.0.1"
-# ENV NO_PROXY="localhost,localdomain,127.0.0.1"
-
 ARG APT_INSTALL="apt-get install -y --no-install-recommends"
 ARG PIP_INSTALL="python -m pip --no-cache-dir install --upgrade"
 ARG GIT_CLONE="git clone --depth 10"
@@ -31,7 +24,7 @@ RUN apt-get update
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN $APT_INSTALL build-essential software-properties-common ca-certificates \
-                 wget git zlib1g-dev nasm cmake unzip
+                 wget git zlib1g-dev nasm cmake
 
 RUN $GIT_CLONE https://github.com/libjpeg-turbo/libjpeg-turbo.git
 WORKDIR libjpeg-turbo
@@ -90,9 +83,6 @@ RUN $PIP_INSTALL opencv-python-headless
 
 WORKDIR $HOME
 
-RUN wget https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-linux.zip
-RUN unzip ninja-linux.zip -d /usr/local/bin/
-RUN update-alternatives --install /usr/bin/ninja ninja /usr/local/bin/ninja 1 --force
 RUN ldconfig
 RUN apt-get clean
 RUN apt-get autoremove
