@@ -11,8 +11,8 @@ ENV https_proxy=http://proxy.usz.ch:8080/
 ENV http_proxy=http://proxy.usz.ch:8080/
 ENV HTTP_PROXY=http://proxy.usz.ch:8080/
 ENV HTTPS_PROXY=http://proxy.usz.ch:8080/
-ENV no_proxy="localhost,localdomain,127.0.0.1"
-ENV NO_PROXY="localhost,localdomain,127.0.0.1"
+# ENV no_proxy="localhost,localdomain,127.0.0.1"
+# ENV NO_PROXY="localhost,localdomain,127.0.0.1"
 
 ARG APT_INSTALL="apt-get install -y --no-install-recommends"
 ARG PIP_INSTALL="python -m pip --no-cache-dir install --upgrade"
