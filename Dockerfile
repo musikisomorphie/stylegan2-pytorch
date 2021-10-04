@@ -74,7 +74,7 @@ RUN python -m pip uninstall -y pillow pil jpeg libtiff libjpeg-turbo --trusted-h
 RUN CFLAGS="${CFLAGS} -mavx2" $PIP_INSTALL --force-reinstall --no-binary :all: --compile pillow-simd --trusted-host pypi.org --trusted-host files.pythonhosted.org 
 
 RUN $APT_INSTALL libsm6 libxext6 libxrender1
-RUN $PIP_INSTALL opencv-python-headless--trusted-host pypi.org --trusted-host files.pythonhosted.org 
+RUN $PIP_INSTALL opencv-python-headless --trusted-host pypi.org --trusted-host files.pythonhosted.org 
 
 # WORKDIR $HOME
 # RUN $GIT_CLONE https://github.com/NVIDIA/apex.git
