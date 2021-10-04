@@ -41,8 +41,9 @@ RUN mv lib/pkgconfig/* /usr/lib/x86_64-linux-gnu/pkgconfig
 RUN ldconfig
 WORKDIR HOME
 
-RUN apt-get install --reinstall ca-certificates
-RUN add-apt-repository ppa:deadsnakes/ppa
+# RUN add-apt-repository ppa:deadsnakes/ppa
+RUN deb http://ppa.launchpad.net/deadsnakes/ppa/ubuntu bionic main
+RUN apt-key adv --keyserver keyserver.ubuntu.com/ --recv-keys BA6932366A755776
 
 RUN apt-get update
 
