@@ -26,7 +26,17 @@ RUN rm -rf /var/lib/apt/lists/* \
            /etc/apt/sources.list.d/cuda.list \
            /etc/apt/sources.list.d/nvidia-ml.list
 
-RUN apt-get update
+RUN apt-get update \
+ && apt-get install -y sudo
+
+RUN adduser --disabled-password --gecos '' docker
+RUN adduser docker sudo
+RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+USER docker
+
+# this is where I was running into problems with the other approaches
+RUN sudo apt-get update 
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -48,7 +58,7 @@ RUN mv lib/pkgconfig/* /usr/lib/x86_64-linux-gnu/pkgconfig
 RUN ldconfig
 WORKDIR HOME
 
-RUN add-apt-repository ppa:deadsnakes/ppa
+RUN sudo -E add-apt-repository ppa:deadsnakes/ppa
 
 RUN apt-get update
 
