@@ -26,8 +26,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN $APT_INSTALL build-essential software-properties-common ca-certificates \
                  wget git zlib1g-dev nasm cmake 
 
-RUN $APT_INSTALL build-essential zlib1g-dev libncurses5-dev \
-                 libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev
+# RUN $APT_INSTALL build-essential zlib1g-dev libncurses5-dev \
+#                  libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev
 
 RUN $GIT_CLONE https://github.com/libjpeg-turbo/libjpeg-turbo.git
 WORKDIR libjpeg-turbo
