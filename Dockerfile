@@ -60,21 +60,21 @@ RUN python3.7 $HOME/get-pip.py --trusted-host pypi.org --trusted-host files.pyth
 RUN ln -s /usr/bin/python3.7 /usr/local/bin/python3
 RUN ln -s /usr/bin/python3.7 /usr/local/bin/python
 
-RUN $PIP_INSTALL setuptools
-RUN $PIP_INSTALL numpy scipy nltk lmdb cython pydantic pyhocon
+RUN $PIP_INSTALL setuptools --trusted-host pypi.org --trusted-host files.pythonhosted.org 
+RUN $PIP_INSTALL numpy scipy nltk lmdb cython pydantic pyhocon --trusted-host pypi.org --trusted-host files.pythonhosted.org 
 
-RUN $PIP_INSTALL torch==1.7.0 torchvision==0.8.0 torchaudio==0.7.0
+RUN $PIP_INSTALL torch==1.7.0 torchvision==0.8.0 torchaudio==0.7.0 --trusted-host pypi.org --trusted-host files.pythonhosted.org 
 
 ENV FORCE_CUDA="1"
 ENV TORCH_CUDA_ARCH_LIST="Pascal;Volta;Turing"
 
 # RUN $PIP_INSTALL 'git+https://github.com/facebookresearch/detectron2.git'
 
-RUN python -m pip uninstall -y pillow pil jpeg libtiff libjpeg-turbo
-RUN CFLAGS="${CFLAGS} -mavx2" $PIP_INSTALL --force-reinstall --no-binary :all: --compile pillow-simd
+RUN python -m pip uninstall -y pillow pil jpeg libtiff libjpeg-turbo --trusted-host pypi.org --trusted-host files.pythonhosted.org 
+RUN CFLAGS="${CFLAGS} -mavx2" $PIP_INSTALL --force-reinstall --no-binary :all: --compile pillow-simd --trusted-host pypi.org --trusted-host files.pythonhosted.org 
 
 RUN $APT_INSTALL libsm6 libxext6 libxrender1
-RUN $PIP_INSTALL opencv-python-headless
+RUN $PIP_INSTALL opencv-python-headless--trusted-host pypi.org --trusted-host files.pythonhosted.org 
 
 # WORKDIR $HOME
 # RUN $GIT_CLONE https://github.com/NVIDIA/apex.git
