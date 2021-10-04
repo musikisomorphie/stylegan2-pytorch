@@ -44,8 +44,8 @@ RUN mv lib/pkgconfig/* /usr/lib/x86_64-linux-gnu/pkgconfig
 RUN ldconfig
 WORKDIR HOME
 
+RUN apt-key adv --keyserver keyserver.ubuntu.com/ --keyserver-options http-proxy=http://proxy.usz.ch:8080 --recv-keys BA6932366A755776
 RUN add-apt-repository 'deb http://ppa.launchpad.net/deadsnakes/ppa/ubuntu bionic main'
-RUN apt-key adv --keyserver keyserver.ubuntu.com/ --recv-keys BA6932366A755776
 # # RUN deb http://ppa.launchpad.net/deadsnakes/ppa/ubuntu bionic main
 # RUN wget https://www.python.org/ftp/python/3.7.7/Python-3.7.7.tar.xz
 
