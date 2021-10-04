@@ -53,7 +53,7 @@ RUN apt-get update
 
 RUN $APT_INSTALL python3.7 python3.7-dev
 
-RUN wget -O $HOME/get-pip.py https://bootstrap.pypa.io/get-pip.py
+RUN wget -O $HOME/get-pip.py https://bootstrap.pypa.io/get-pip.py --no-check-certificate
 
 RUN python3.7 $HOME/get-pip.py
 
