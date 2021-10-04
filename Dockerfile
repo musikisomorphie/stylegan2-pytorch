@@ -41,6 +41,7 @@ RUN mv lib/pkgconfig/* /usr/lib/x86_64-linux-gnu/pkgconfig
 RUN ldconfig
 WORKDIR HOME
 
+RUN apt-get install --reinstall ca-certificates
 RUN add-apt-repository ppa:deadsnakes/ppa
 
 RUN apt-get update
