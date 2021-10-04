@@ -5,7 +5,7 @@
 # pytorch       latest (pip)
 # ==================================================================
 
-FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
+FROM nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04
 
 ARG APT_INSTALL="apt-get install -y --no-install-recommends"
 ARG PIP_INSTALL="python -m pip --no-cache-dir install --upgrade"
@@ -24,7 +24,7 @@ RUN apt-get update
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN $APT_INSTALL build-essential software-properties-common ca-certificates \
-                 wget git zlib1g-dev nasm cmake
+                 wget git zlib1g-dev nasm cmake unzip
 
 RUN $GIT_CLONE https://github.com/libjpeg-turbo/libjpeg-turbo.git
 WORKDIR libjpeg-turbo
@@ -57,12 +57,12 @@ RUN ln -s /usr/bin/python3.7 /usr/local/bin/python
 RUN $PIP_INSTALL setuptools
 RUN $PIP_INSTALL numpy scipy nltk lmdb cython pydantic pyhocon
 
-RUN $PIP_INSTALL torch==1.5.1+cu101 torchvision==0.6.1+cu101 -f https://download.pytorch.org/whl/torch_stable.html
+RUN $PIP_INSTALL torch==1.7.0 torchvision==0.8.0 torchaudio==0.7.0
 
 ENV FORCE_CUDA="1"
 ENV TORCH_CUDA_ARCH_LIST="Pascal;Volta;Turing"
 
-RUN $PIP_INSTALL 'git+https://github.com/facebookresearch/detectron2.git'
+# RUN $PIP_INSTALL 'git+https://github.com/facebookresearch/detectron2.git'
 
 RUN python -m pip uninstall -y pillow pil jpeg libtiff libjpeg-turbo
 RUN CFLAGS="${CFLAGS} -mavx2" $PIP_INSTALL --force-reinstall --no-binary :all: --compile pillow-simd
@@ -70,19 +70,22 @@ RUN CFLAGS="${CFLAGS} -mavx2" $PIP_INSTALL --force-reinstall --no-binary :all: -
 RUN $APT_INSTALL libsm6 libxext6 libxrender1
 RUN $PIP_INSTALL opencv-python-headless
 
-WORKDIR $HOME
-RUN $GIT_CLONE https://github.com/NVIDIA/apex.git
-WORKDIR apex
-RUN $PIP_INSTALL -v --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+# WORKDIR $HOME
+# RUN $GIT_CLONE https://github.com/NVIDIA/apex.git
+# WORKDIR apex
+# RUN $PIP_INSTALL -v --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+
+# WORKDIR $HOME
+# RUN $GIT_CLONE https://github.com/cocodataset/cocoapi.git
+# WORKDIR cocoapi/PythonAPI
+# RUN make
+# RUN python setup.py build_ext install
 
 WORKDIR $HOME
-RUN $GIT_CLONE https://github.com/cocodataset/cocoapi.git
-WORKDIR cocoapi/PythonAPI
-RUN make
-RUN python setup.py build_ext install
 
-WORKDIR $HOME
-
+RUN wget https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-linux.zip
+RUN unzip ninja-linux.zip -d /usr/local/bin/
+RUN update-alternatives --install /usr/bin/ninja ninja /usr/local/bin/ninja 1 --force
 RUN ldconfig
 RUN apt-get clean
 RUN apt-get autoremove
