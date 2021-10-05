@@ -5,7 +5,7 @@
 # pytorch       latest (pip)
 # ==================================================================
 
-FROM nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04
+FROM nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04
 
 ARG APT_INSTALL="apt-get install -y --no-install-recommends"
 ARG PIP_INSTALL="python -m pip --no-cache-dir install --upgrade --trusted-host pypi.org --trusted-host files.pythonhosted.org"
@@ -43,7 +43,7 @@ WORKDIR HOME
 
 # RUN apt-key adv --keyserver keyserver.ubuntu.com/ --recv-keys BA6932366A755776
 RUN apt-key adv --keyserver keyserver.ubuntu.com/ --keyserver-options http-proxy=http://proxy.usz.ch:8080 --recv-keys BA6932366A755776
-RUN add-apt-repository 'deb http://ppa.launchpad.net/deadsnakes/ppa/ubuntu bionic main'
+RUN add-apt-repository 'deb http://ppa.launchpad.net/deadsnakes/ppa/ubuntu focal main'
 # # RUN deb http://ppa.launchpad.net/deadsnakes/ppa/ubuntu bionic main
 # RUN wget https://www.python.org/ftp/python/3.7.7/Python-3.7.7.tar.xz
 
@@ -64,7 +64,7 @@ RUN $PIP_INSTALL numpy scipy nltk lmdb cython pydantic pyhocon
 ENV FORCE_CUDA="1"
 ENV TORCH_CUDA_ARCH_LIST="Pascal;Volta;Turing;Ampere"
 
-RUN $PIP_INSTALL torch==1.7.0 torchvision==0.8.0 torchaudio==0.7.0 
+RUN $PIP_INSTALL torch==1.8.0+cu111 torchvision==0.9.0+cu111 torchaudio==0.8.0 -f https://download.pytorch.org/whl/torch_stable.html
 
 
 
