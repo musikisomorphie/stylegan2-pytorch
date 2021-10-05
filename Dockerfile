@@ -61,10 +61,12 @@ RUN ln -s /usr/bin/python3.7 /usr/local/bin/python
 RUN $PIP_INSTALL setuptools 
 RUN $PIP_INSTALL numpy scipy nltk lmdb cython pydantic pyhocon 
 
+ENV FORCE_CUDA="1"
+ENV TORCH_CUDA_ARCH_LIST="Pascal;Volta;Turing;Ampere"
+
 RUN $PIP_INSTALL torch==1.7.0 torchvision==0.8.0 torchaudio==0.7.0 
 
-ENV FORCE_CUDA="1"
-ENV TORCH_CUDA_ARCH_LIST="Pascal;Volta;Turing"
+
 
 RUN python -m pip uninstall -y pillow pil jpeg libtiff libjpeg-turbo 
 RUN CFLAGS="${CFLAGS} -mavx2" $PIP_INSTALL --force-reinstall --no-binary :all: --compile pillow-simd 

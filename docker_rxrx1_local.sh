@@ -1,0 +1,1 @@
+sudo docker run -it -v /home/histopath/Github/stylegan2-pytorch/:/root/stylegan2 -v /home/histopath/Data/rxrx1_lmdb/:/root/rxrx1   --gpus all  stylegan2
