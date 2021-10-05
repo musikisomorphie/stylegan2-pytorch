@@ -74,7 +74,7 @@ RUN $PIP_INSTALL opencv-python-headless
 
 WORKDIR $HOME
 
-RUN wget https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-linux.zip
+RUN wget https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-linux.zip --no-check-certificate
 RUN apt-get update
 RUN $APT_INSTALL unzip
 RUN unzip ninja-linux.zip -d /usr/local/bin/
