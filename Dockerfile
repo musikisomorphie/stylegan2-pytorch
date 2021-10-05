@@ -8,7 +8,7 @@
 FROM nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04
 
 ARG APT_INSTALL="apt-get install -y --no-install-recommends"
-ARG PIP_INSTALL="python -m pip --no-cache-dir install --upgrade --trusted-host pypi.org --trusted-host files.pythonhosted.org"
+ARG PIP_INSTALL="python -m pip --no-cache-dir install --upgrade --trusted-host pypi.org --trusted-host files.pythonhosted.org --trusted-host download.pytorch.org"
 ARG GIT_CLONE="git clone --depth 10"
 
 ENV HOME /root
