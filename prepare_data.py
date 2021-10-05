@@ -8,6 +8,8 @@ import lmdb
 from tqdm import tqdm
 from torchvision import datasets
 from torchvision.transforms import functional as trans_fn
+import pandas as pd
+from pathlib import Path
 
 
 def resize_and_convert(img, size, resample, quality=100):
@@ -41,14 +43,27 @@ def resize_worker(img_file, sizes, resample):
 
 
 def prepare(
-    env, dataset, n_worker, sizes=(128, 256, 512, 1024), resample=Image.LANCZOS
+    env, dataset, path, n_worker, sizes=(128, 256, 512, 1024), resample=Image.LANCZOS
 ):
-    resize_fn = partial(resize_worker, sizes=sizes, resample=resample)
-
+    csv_raw = pd.read_csv(path / 'metadata.csv')
+    csv_raw = csv_raw[csv_raw['site_id'].str.endswith('_1')]
+    csv = csv_raw.loc[csv_raw['dataset'] == 'train']
+    trn_imgs = dict()
+    for row in csv.iterrows():
+        r = row[1]
+        im_path = path / 'images' / \
+            r.experiment / \
+            'Plate{}'.format(r.plate) / '{}_s1.png'.format(r.well)
+        assert im_path not in trn_imgs
+        trn_imgs[str(im_path)] = None
     files = sorted(dataset.imgs, key=lambda x: x[0])
+    # print(len(files))
+    files = list(filter(lambda d: d[0] in trn_imgs, files))
+    # print(len(files))
     files = [(i, file) for i, (file, label) in enumerate(files)]
     total = 0
 
+    resize_fn = partial(resize_worker, sizes=sizes, resample=resample)
     with multiprocessing.Pool(n_worker) as pool:
         for i, imgs in tqdm(pool.imap_unordered(resize_fn, files)):
             for size, img in zip(sizes, imgs):
@@ -64,8 +79,10 @@ def prepare(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Preprocess images for model training")
-    parser.add_argument("--out", type=str, help="filename of the result lmdb dataset")
+    parser = argparse.ArgumentParser(
+        description="Preprocess images for model training")
+    parser.add_argument("--out", type=str,
+                        help="filename of the result lmdb dataset")
     parser.add_argument(
         "--size",
         type=str,
@@ -94,8 +111,9 @@ if __name__ == "__main__":
     sizes = [int(s.strip()) for s in args.size.split(",")]
 
     print(f"Make dataset of image sizes:", ", ".join(str(s) for s in sizes))
-
-    imgset = datasets.ImageFolder(args.path)
-
+    path = Path(args.path)
+    imgset = datasets.ImageFolder(str(path / 'images'))
+    
     with lmdb.open(args.out, map_size=1024 ** 4, readahead=False) as env:
-        prepare(env, imgset, args.n_worker, sizes=sizes, resample=resample)
+        prepare(env, imgset, path, args.n_worker,
+                sizes=sizes, resample=resample)
