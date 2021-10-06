@@ -20,7 +20,7 @@ def generate(args, g_ema, device, mean_latent):
             utils.save_image(
                 sample,
                 f"sample/{str(i).zfill(6)}.png",
-                nrow=1,
+                nrow=4,
                 normalize=True,
                 range=(-1, 1),
             )
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate samples from the generator")
 
     parser.add_argument(
-        "--size", type=int, default=1024, help="output image size of the generator"
+        "--size", type=int, default=256, help="output image size of the generator"
     )
     parser.add_argument(
         "--sample",
