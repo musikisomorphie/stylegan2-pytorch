@@ -29,6 +29,32 @@ from distributed import (
 )
 from op import conv2d_gradfix
 from non_leaking import augment, AdaptiveAugment
+from pathlib import Path
+
+
+def mkdir_checkpoint(path):
+    check_save = None
+    if 'rxrx1' in path:
+        check_save = Path('checkpoint_rxrx1')
+    elif 'scrc' in path:
+        prefix = 'checkpoint_scrc_'
+        if '012' in path:
+            check_save = Path(prefix + '012')
+        elif '120' in path:
+            check_save = Path(prefix + '120')
+        elif '201' in path:
+            check_save = Path(prefix + '201')
+        else:
+            raise ValueError(
+                'wrong env settings for scrc based on the path {}'.format(path))
+    else:
+        raise ValueError(
+            'the dataset indicated by the path {} is not supported'.format(path))
+            
+    check_save.mkdir(parents=True, exist_ok=True)
+    (check_save / 'checkpoint').mkdir(parents=True, exist_ok=True)
+    (check_save / 'sample').mkdir(parents=True, exist_ok=True)
+    return check_save
 
 
 def data_sampler(dataset, shuffle, distributed):
@@ -73,7 +99,8 @@ def d_r1_loss(real_pred, real_img):
         grad_real, = autograd.grad(
             outputs=real_pred.sum(), inputs=real_img, create_graph=True
         )
-    grad_penalty = grad_real.pow(2).reshape(grad_real.shape[0], -1).sum(1).mean()
+    grad_penalty = grad_real.pow(2).reshape(
+        grad_real.shape[0], -1).sum(1).mean()
 
     return grad_penalty
 
@@ -93,7 +120,8 @@ def g_path_regularize(fake_img, latents, mean_path_length, decay=0.01):
     )
     path_lengths = torch.sqrt(grad.pow(2).sum(2).mean(1))
 
-    path_mean = mean_path_length + decay * (path_lengths.mean() - mean_path_length)
+    path_mean = mean_path_length + decay * \
+        (path_lengths.mean() - mean_path_length)
 
     path_penalty = (path_lengths - path_mean).pow(2).mean()
 
@@ -123,13 +151,14 @@ def set_grad_none(model, targets):
             p.grad = None
 
 
-def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device):
+def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, check_save):
     loader = sample_data(loader)
 
     pbar = range(args.iter)
 
     if get_rank() == 0:
-        pbar = tqdm(pbar, initial=args.start_iter, dynamic_ncols=True, smoothing=0.01)
+        pbar = tqdm(pbar, initial=args.start_iter,
+                    dynamic_ncols=True, smoothing=0.01)
 
     mean_path_length = 0
 
@@ -154,7 +183,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
     r_t_stat = 0
 
     if args.augment and args.augment_p == 0:
-        ada_augment = AdaptiveAugment(args.ada_target, args.ada_length, 8, device)
+        ada_augment = AdaptiveAugment(
+            args.ada_target, args.ada_length, 8, device)
 
     sample_z = torch.randn(args.n_sample, args.latent, device=device)
 
@@ -213,7 +243,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
             r1_loss = d_r1_loss(real_pred, real_img)
 
             discriminator.zero_grad()
-            (args.r1 / 2 * r1_loss * args.d_reg_every + 0 * real_pred[0]).backward()
+            (args.r1 / 2 * r1_loss * args.d_reg_every +
+             0 * real_pred[0]).backward()
 
             d_optim.step()
 
@@ -241,7 +272,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
 
         if g_regularize:
             path_batch_size = max(1, args.batch // args.path_batch_shrink)
-            noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
+            noise = mixing_noise(
+                path_batch_size, args.latent, args.mixing, device)
             fake_img, latents = generator(noise, return_latents=True)
 
             path_loss, mean_path_length, path_lengths = g_path_regularize(
@@ -308,7 +340,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                     sample, _ = g_ema([sample_z])
                     utils.save_image(
                         sample,
-                        f"sample/{str(i).zfill(6)}.png",
+                        str(check_save / 'sample' /
+                            '{}.png'.format(str(i).zfill(6))),
                         nrow=int(args.n_sample ** 0.5),
                         normalize=True,
                         range=(-1, 1),
@@ -325,7 +358,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                         "args": args,
                         "ada_aug_p": ada_aug_p,
                     },
-                    f"checkpoint/{str(i).zfill(6)}.pt",
+                    str(check_save / 'checkpoint' /
+                        '{}.pt'.format(str(i).zfill(6))),
                 )
 
 
@@ -335,7 +369,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="StyleGAN2 trainer")
 
     parser.add_argument("path", type=str, help="path to the lmdb dataset")
-    parser.add_argument('--arch', type=str, default='stylegan2', help='model architectures (stylegan2 | swagan)')
+    parser.add_argument('--arch', type=str, default='stylegan2',
+                        help='model architectures (stylegan2 | swagan)')
     parser.add_argument(
         "--iter", type=int, default=800000, help="total training iterations"
     )
@@ -387,7 +422,8 @@ if __name__ == "__main__":
         default=None,
         help="path to the checkpoints to resume training",
     )
-    parser.add_argument("--lr", type=float, default=0.002, help="learning rate")
+    parser.add_argument("--lr", type=float, default=0.002,
+                        help="learning rate")
     parser.add_argument(
         "--channel_multiplier",
         type=int,
@@ -435,7 +471,8 @@ if __name__ == "__main__":
 
     if args.distributed:
         torch.cuda.set_device(args.local_rank)
-        torch.distributed.init_process_group(backend="nccl", init_method="env://")
+        torch.distributed.init_process_group(
+            backend="nccl", init_method="env://")
         synchronize()
 
     args.latent = 512
@@ -513,7 +550,8 @@ if __name__ == "__main__":
         [
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
+            transforms.Normalize(
+                (0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
         ]
     )
 
@@ -521,11 +559,14 @@ if __name__ == "__main__":
     loader = data.DataLoader(
         dataset,
         batch_size=args.batch,
-        sampler=data_sampler(dataset, shuffle=True, distributed=args.distributed),
+        sampler=data_sampler(dataset, shuffle=True,
+                             distributed=args.distributed),
         drop_last=True,
     )
 
     if get_rank() == 0 and wandb is not None and args.wandb:
         wandb.init(project="stylegan 2")
 
-    train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device)
+    check_save = mkdir_checkpoint(args.path)
+    train(args, loader, generator, discriminator,
+          g_optim, d_optim, g_ema, device, check_save)
