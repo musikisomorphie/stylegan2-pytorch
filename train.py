@@ -546,8 +546,18 @@ if __name__ == "__main__":
             broadcast_buffers=False,
         )
 
+    angles = [0, 90, 180, 270]
+
+    def random_rotation(x: torch.Tensor) -> torch.Tensor:
+        angle = angles[torch.randint(low=0, high=len(angles), size=(1,))]
+        if angle > 0:
+            x = transforms.functional.rotate(x, angle)
+        return x
+    t_random_rotation = transforms.Lambda(lambda x: random_rotation(x))
+
     transform = transforms.Compose(
-        [
+        [   
+            t_random_rotation,
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(
