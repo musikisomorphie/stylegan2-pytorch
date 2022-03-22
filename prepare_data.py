@@ -47,14 +47,15 @@ def prepare(
 ):
     files = sorted(dataset.imgs, key=lambda x: x[0])
     # print(len(files))
-    files = list(filter(lambda d: d[0] in trn_imgs, files))
+    if trn_imgs is not None:
+        files = list(filter(lambda d: d[0] in trn_imgs, files))
     # print(len(files))
     files = [(i, file) for i, (file, label) in enumerate(files)]
     total = 0
 
     resize_fn = partial(resize_worker, sizes=sizes, resample=resample)
     with multiprocessing.Pool(n_worker) as pool:
-        for i, imgs in tqdm(pool.imap_unordered(resize_fn, files)):
+        for i, imgs in tqdm(pool.imap(resize_fn, files)):
             for size, img in zip(sizes, imgs):
                 key = f"{size}-{str(i).zfill(5)}".encode("utf-8")
 
@@ -101,8 +102,6 @@ if __name__ == "__main__":
 
     print(f"Make dataset of image sizes:", ", ".join(str(s) for s in sizes))
     path = Path(args.path)
-    imgset = datasets.ImageFolder(str(path / 'images'))
-
     if 'rxrx1' in args.path:
         csv_raw = pd.read_csv(path / 'metadata.csv')
         csv_raw = csv_raw[csv_raw['site_id'].str.endswith('_1')]
@@ -115,6 +114,7 @@ if __name__ == "__main__":
                 'Plate{}'.format(r.plate) / '{}_s1.png'.format(r.well)
             assert im_path not in trn_imgs
             trn_imgs[str(im_path)] = None
+        img_dir = 'images'
     elif 'scrc' in args.path:
         # be cautious of /
         t_reg = args.out[-4:-1]
@@ -127,7 +127,12 @@ if __name__ == "__main__":
                 '{}_1.png'.format(r.tma_id)
             assert im_path not in trn_imgs
             trn_imgs[str(im_path)] = None
+        img_dir = 'images'
+    elif 'camelyon17' in args.path:
+        trn_imgs = None
+        img_dir = 'patches'
 
+    imgset = datasets.ImageFolder(str(path / img_dir))
     with lmdb.open(args.out, map_size=1024 ** 4, readahead=False) as env:
         prepare(env, imgset, trn_imgs, args.n_worker,
                 sizes=sizes, resample=resample)

@@ -47,10 +47,12 @@ def mkdir_checkpoint(path):
         else:
             raise ValueError(
                 'wrong env settings for scrc based on the path {}'.format(path))
+    elif 'camelyon17' in path:
+        check_save = Path('checkpoint_camelyon17')
     else:
         raise ValueError(
             'the dataset indicated by the path {} is not supported'.format(path))
-            
+
     check_save.mkdir(parents=True, exist_ok=True)
     (check_save / 'checkpoint').mkdir(parents=True, exist_ok=True)
     (check_save / 'sample').mkdir(parents=True, exist_ok=True)
@@ -556,7 +558,7 @@ if __name__ == "__main__":
     t_random_rotation = transforms.Lambda(lambda x: random_rotation(x))
 
     transform = transforms.Compose(
-        [   
+        [
             t_random_rotation,
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
