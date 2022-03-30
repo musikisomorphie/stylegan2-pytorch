@@ -1,0 +1,1 @@
+sudo docker run -it -v /raid/jiqing/Github/stylegan2-pytorch/:/root/stylegan2 -v /raid/jiqing/Data/non_IID/decoder/rxrx19b_lmdb/:/root/rxrx19b --gpus '"device=0,1"'  stylegan2_11.1
