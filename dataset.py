@@ -1,6 +1,7 @@
 from io import BytesIO
 
 import lmdb
+import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 
@@ -20,10 +21,12 @@ class MultiResolutionDataset(Dataset):
             raise IOError('Cannot open lmdb dataset', path)
 
         with self.env.begin(write=False) as txn:
-            self.length = int(txn.get('length'.encode('utf-8')).decode('utf-8'))
+            self.length = int(
+                txn.get('length'.encode('utf-8')).decode('utf-8'))
 
         self.resolution = resolution
         self.transform = transform
+        self.mult_chn = True if 'rxrx19b' in path else False
 
     def __len__(self):
         return self.length
@@ -35,6 +38,11 @@ class MultiResolutionDataset(Dataset):
 
         buffer = BytesIO(img_bytes)
         img = Image.open(buffer)
+        img = np.asarray(img.convert('RGB'))
+        if self.mult_chn:
+            col = img.shape[1] // 2
+            img = np.concatenate((img[:, :col],
+                                  img[:, col:]), axis=-1)
         img = self.transform(img)
 
         return img

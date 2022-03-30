@@ -34,7 +34,11 @@ from pathlib import Path
 
 def mkdir_checkpoint(path):
     check_save = None
-    if 'rxrx1' in path:
+    if 'rxrx19b' in path:
+        check_save = Path('checkpoint_rxrx19b')
+    elif 'camelyon17' in path:
+        check_save = Path('checkpoint_camelyon17')
+    elif 'rxrx1' in path:
         check_save = Path('checkpoint_rxrx1')
     elif 'scrc' in path:
         prefix = 'checkpoint_scrc_'
@@ -47,8 +51,6 @@ def mkdir_checkpoint(path):
         else:
             raise ValueError(
                 'wrong env settings for scrc based on the path {}'.format(path))
-    elif 'camelyon17' in path:
-        check_save = Path('checkpoint_camelyon17')
     else:
         raise ValueError(
             'the dataset indicated by the path {} is not supported'.format(path))
@@ -340,6 +342,11 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                 with torch.no_grad():
                     g_ema.eval()
                     sample, _ = g_ema([sample_z])
+                    if 'rxrx19b' in args.path:
+                        s1 = sample[:args.n_sample//2, :3].clone()
+                        s2 = sample[:args.n_sample//2, 3:].clone()
+                        sample = sample[:, :3]
+                        sample[::2], sample[1::2] = s1, s2
                     utils.save_image(
                         sample,
                         str(check_save / 'sample' /
@@ -488,14 +495,15 @@ if __name__ == "__main__":
     elif args.arch == 'swagan':
         from swagan import Generator, Discriminator
 
+    img_chn = 6 if 'rxrx19b' in args.path else 3
     generator = Generator(
-        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
+        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
     discriminator = Discriminator(
-        args.size, channel_multiplier=args.channel_multiplier
+        args.size, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
     g_ema = Generator(
-        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
+        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
     g_ema.eval()
     accumulate(g_ema, generator, 0)
@@ -559,11 +567,11 @@ if __name__ == "__main__":
 
     transform = transforms.Compose(
         [
+            transforms.ToTensor(),
             t_random_rotation,
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
             transforms.Normalize(
-                (0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
+                [0.5] * img_chn, [0.5] * img_chn, inplace=True),
         ]
     )
 
