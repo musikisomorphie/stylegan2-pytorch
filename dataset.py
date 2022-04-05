@@ -26,7 +26,7 @@ class MultiResolutionDataset(Dataset):
 
         self.resolution = resolution
         self.transform = transform
-        self.mult_chn = True if 'rxrx19b' in path else False
+        self.path = path
 
     def __len__(self):
         return self.length
@@ -38,8 +38,11 @@ class MultiResolutionDataset(Dataset):
 
         buffer = BytesIO(img_bytes)
         img = Image.open(buffer)
-        img = np.asarray(img.convert('RGB'))
-        if self.mult_chn:
+        if 'covidx' in self.path:
+            img = np.asarray(img.convert('L'))
+        else:
+            img = np.asarray(img.convert('RGB'))
+        if 'rxrx19b' in self.path:
             col = img.shape[1] // 2
             img = np.concatenate((img[:, :col],
                                   img[:, col:]), axis=-1)

@@ -378,6 +378,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="StyleGAN2 trainer")
 
     parser.add_argument("path", type=str, help="path to the lmdb dataset")
+    parser.add_argument("--save", type=str, help="path to the train output")
     parser.add_argument('--arch', type=str, default='stylegan2',
                         help='model architectures (stylegan2 | swagan)')
     parser.add_argument(
@@ -587,6 +588,9 @@ if __name__ == "__main__":
     if get_rank() == 0 and wandb is not None and args.wandb:
         wandb.init(project="stylegan 2")
 
-    check_save = mkdir_checkpoint(args.path)
+    check_save = Path(args.save)
+    check_save.mkdir(parents=True, exist_ok=True)
+    (check_save / 'checkpoint').mkdir(parents=True, exist_ok=True)
+    (check_save / 'sample').mkdir(parents=True, exist_ok=True)
     train(args, loader, generator, discriminator,
           g_optim, d_optim, g_ema, device, check_save)

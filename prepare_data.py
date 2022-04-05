@@ -1,89 +1,77 @@
-import numpy as np
-import argparse
-from io import BytesIO
-import multiprocessing
-from functools import partial
-
-from PIL import Image
 import lmdb
+import argparse
+import multiprocessing
+
 from tqdm import tqdm
+from PIL import Image
+from io import BytesIO
+from functools import partial
 from torchvision import datasets
-from torchvision.transforms import functional as trans_fn
-import pandas as pd
-from pathlib import Path
 
 
-def resize_and_convert(img, size, resample, quality=100):
-    img = trans_fn.resize(img, size, resample)
-    img = trans_fn.center_crop(img, size)
+def resize_and_convert(img, size):
+    if img.size != (size, size):
+        img = img.resize((size, size))
     buffer = BytesIO()
-    img.save(buffer, format="jpeg", quality=quality)
+    # use lossless png format
+    img.save(buffer, format='png')
     val = buffer.getvalue()
 
     return val
 
 
-def resize_multiple(
-    img, sizes=(128, 256, 512, 1024), resample=Image.LANCZOS, quality=100
-):
+def resize_multiple(img, sizes):
     imgs = []
 
     for size in sizes:
-        imgs.append(resize_and_convert(img, size, resample, quality))
+        imgs.append(resize_and_convert(img, size))
 
     return imgs
 
 
-def resize_worker(img_file, sizes, resample):
+def resize_worker(img_file, sizes):
     i, file = img_file
     # ../rxrx19b{64, 128, ..., 1024}/images/HUVEC-1/Plate{n}/**.png
-    if 'rxrx19b' in file:
-        # rxrx19b256
-        out, cmp = [], None
-        res = file.split('/')[-5]
-        for size in sizes:
-            file_res = file.replace(res, 'rxrx19b{}'.format(size))
-            img = Image.open(file_res).convert('RGB')
-            buffer = BytesIO()
-            img.save(buffer, format="jpeg", quality=100)
-            out.append(buffer.getvalue())
+    # if 'rxrx19b' in file:
+    #     # rxrx19b256
+    #     out, cmp = [], None
+    #     res = file.split('/')[-5]
+    #     for size in sizes:
+    #         file_res = file.replace(res, 'rxrx19b{}'.format(size))
+    #         img = Image.open(file_res).convert('RGB')
+    #         buffer = BytesIO()
+    #         img.save(buffer, format='png')
+    #         out.append(buffer.getvalue())
 
-            # only suitable for 128, 256 cases
-            debug = False
-            if debug:
-                if size == 256:
-                    im0 = img.crop((0, 0, 256, 256)).resize((128, 128))
-                    im0 = np.asarray(im0)
-                    im1 = img.crop((256, 0, 512, 256)).resize((128, 128))
-                    im1 = np.asarray(im1)
-                    ims = np.concatenate((im0, im1), axis=1).astype(np.float32)
-                    err = np.abs(ims - cmp)
-                    # empirical thres
-                    if np.mean(err) > 0.2:
-                        print(file, np.max(err), np.mean(err))
-                else:
-                    # np.float32 avoid integer overflow
-                    cmp = np.asarray(img).astype(np.float32)
-    else:
-        img = Image.open(file)
-        img = img.convert("RGB")
-        out = resize_multiple(img, sizes=sizes, resample=resample)
+    #         # only suitable for 128, 256 cases
+    #         debug = False
+    #         if debug:
+    #             if size == 256:
+    #                 im0 = img.crop((0, 0, 256, 256)).resize((128, 128))
+    #                 im0 = np.asarray(im0)
+    #                 im1 = img.crop((256, 0, 512, 256)).resize((128, 128))
+    #                 im1 = np.asarray(im1)
+    #                 ims = np.concatenate((im0, im1), axis=1).astype(np.float32)
+    #                 err = np.abs(ims - cmp)
+    #                 # empirical thres
+    #                 if np.mean(err) > 0.2:
+    #                     print(file, np.max(err), np.mean(err))
+    #             else:
+    #                 # np.float32 avoid integer overflow
+    #                 cmp = np.asarray(img).astype(np.float32)
+    # else:
+    img = Image.open(file)
+    out = resize_multiple(img, sizes=sizes)
 
     return i, out
 
 
-def prepare(
-    env, dataset, trn_imgs, n_worker, sizes=(128, 256, 512, 1024), resample=Image.LANCZOS
-):
+def prepare(env, dataset, n_worker, sizes):
     files = sorted(dataset.imgs, key=lambda x: x[0])
-    # print(len(files))
-    if trn_imgs is not None:
-        files = list(filter(lambda d: d[0] in trn_imgs, files))
-    # print(len(files))
     files = [(i, file) for i, (file, label) in enumerate(files)]
     total = 0
 
-    resize_fn = partial(resize_worker, sizes=sizes, resample=resample)
+    resize_fn = partial(resize_worker, sizes=sizes)
     with multiprocessing.Pool(n_worker) as pool:
         for i, imgs in tqdm(pool.imap_unordered(resize_fn, files)):
             for size, img in zip(sizes, imgs):
@@ -115,57 +103,14 @@ if __name__ == "__main__":
         default=8,
         help="number of workers for preparing dataset",
     )
-    parser.add_argument(
-        "--resample",
-        type=str,
-        default="lanczos",
-        help="resampling methods for resizing images",
-    )
     parser.add_argument("path", type=str, help="path to the image dataset")
 
     args = parser.parse_args()
 
-    resample_map = {"lanczos": Image.LANCZOS, "bilinear": Image.BILINEAR}
-    resample = resample_map[args.resample]
-
     sizes = [int(s.strip()) for s in args.size.split(",")]
 
     print(f"Make dataset of image sizes:", ", ".join(str(s) for s in sizes))
-    path = Path(args.path)
-    if 'rxrx1' in args.path:
-        if 'rxrx19b' not in args.path:
-            csv_raw = pd.read_csv(path / 'metadata.csv')
-            csv_raw = csv_raw[csv_raw['site_id'].str.endswith('_1')]
-            csv = csv_raw.loc[csv_raw['dataset'] == 'train']
-            trn_imgs = dict()
-            for row in csv.iterrows():
-                r = row[1]
-                im_path = path / 'images' / \
-                    r.experiment / \
-                    'Plate{}'.format(r.plate) / '{}_s1.png'.format(r.well)
-                assert im_path not in trn_imgs
-                trn_imgs[str(im_path)] = None
-        else:
-            trn_imgs = None
-        img_dir = 'images'
-    elif 'scrc' in args.path:
-        # be cautious of /
-        t_reg = args.out[-4:-1]
-        csv_raw = pd.read_csv(path / 'metadata{}.csv'.format(t_reg))
-        csv = csv_raw.loc[csv_raw['dataset'] == 'train']
-        trn_imgs = dict()
-        for row in csv.iterrows():
-            r = row[1]
-            im_path = path / 'images' / str(r.tma_reg) / \
-                '{}_1.png'.format(r.tma_id)
-            assert im_path not in trn_imgs
-            trn_imgs[str(im_path)] = None
-        img_dir = 'images'
-    elif 'camelyon17' in args.path:
-        trn_imgs = None
-        img_dir = 'patches'
 
-    imgset = datasets.ImageFolder(str(path / img_dir))
+    imgset = datasets.ImageFolder(args.path)
     with lmdb.open(args.out, map_size=1024 ** 4, readahead=False) as env:
-        prepare(env, imgset, trn_imgs, args.n_worker,
-                sizes=sizes, resample=resample)
+        prepare(env, imgset, args.n_worker, sizes)
