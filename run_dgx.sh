@@ -1,2 +1,0 @@
-python -m torch.distributed.launch --nproc_per_node=1 --master_port=50123 train.py \
-        --batch 16 --iter 200000 --size 256  --save /root/Data/non_IID/encoder/ham10/  /root/Data/non_IID/decoder/ham10_lmdb/
