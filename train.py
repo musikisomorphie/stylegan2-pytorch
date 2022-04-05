@@ -30,6 +30,7 @@ from distributed import (
 from op import conv2d_gradfix
 from non_leaking import augment, AdaptiveAugment
 
+from pathlib import Path
 
 def data_sampler(dataset, shuffle, distributed):
     if distributed:
@@ -123,7 +124,7 @@ def set_grad_none(model, targets):
             p.grad = None
 
 
-def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device):
+def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, check_save):
     loader = sample_data(loader)
 
     pbar = range(args.iter)
@@ -302,13 +303,14 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                     }
                 )
 
-            if i % 100 == 0:
+            if i % 1000 == 0:
                 with torch.no_grad():
                     g_ema.eval()
                     sample, _ = g_ema([sample_z])
                     utils.save_image(
                         sample,
-                        f"sample/{str(i).zfill(6)}.png",
+                        str(check_save / 'sample' /
+                            '{}.png'.format(str(i).zfill(6))),
                         nrow=int(args.n_sample ** 0.5),
                         normalize=True,
                         range=(-1, 1),
@@ -325,7 +327,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                         "args": args,
                         "ada_aug_p": ada_aug_p,
                     },
-                    f"checkpoint/{str(i).zfill(6)}.pt",
+                    str(check_save / 'checkpoint' /
+                        '{}.pt'.format(str(i).zfill(6))),
                 )
 
 
@@ -428,6 +431,8 @@ if __name__ == "__main__":
         help="probability update interval of the adaptive augmentation",
     )
 
+    parser.add_argument("--check_save", type=str, help="path to the train output")
+
     args = parser.parse_args()
 
     n_gpu = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
@@ -528,4 +533,8 @@ if __name__ == "__main__":
     if get_rank() == 0 and wandb is not None and args.wandb:
         wandb.init(project="stylegan 2")
 
+    check_save = Path(args.check_save)
+    check_save.mkdir(parents=True, exist_ok=True)
+    (check_save / 'checkpoint').mkdir(parents=True, exist_ok=True)
+    (check_save / 'sample').mkdir(parents=True, exist_ok=True)
     train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device)
