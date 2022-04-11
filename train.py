@@ -307,6 +307,14 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                 with torch.no_grad():
                     g_ema.eval()
                     sample, _ = g_ema([sample_z])
+                    if 'rxrx19b' in args.path:
+                        n_sample = args.n_sample // 2
+                        s0 = sample[:n_sample, :3].clone()
+                        s1 = sample[:n_sample, 3:].clone()
+                        sample = sample[:, :3]
+                        sample[::2] = s0
+                        sample[1::2] = s1
+                        
                     utils.save_image(
                         sample,
                         str(check_save / 'sample' /
@@ -454,14 +462,15 @@ if __name__ == "__main__":
     elif args.arch == 'swagan':
         from swagan import Generator, Discriminator
 
+    img_chn = 6 if 'rxrx19b' in args.path else 3
     generator = Generator(
-        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
+        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
     discriminator = Discriminator(
-        args.size, channel_multiplier=args.channel_multiplier
+        args.size, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
     g_ema = Generator(
-        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
+        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
     g_ema.eval()
     accumulate(g_ema, generator, 0)
@@ -514,11 +523,22 @@ if __name__ == "__main__":
             broadcast_buffers=False,
         )
 
+    angles = [0, 90, 180, 270]
+
+    def random_rotation(x: torch.Tensor) -> torch.Tensor:
+        angle = angles[torch.randint(low=0, high=len(angles), size=(1,))]
+        if angle > 0:
+            x = transforms.functional.rotate(x, angle)
+        return x
+    t_random_rotation = transforms.Lambda(lambda x: random_rotation(x))
+
     transform = transforms.Compose(
         [
-            transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
+            t_random_rotation,
+            transforms.RandomHorizontalFlip(),
+            transforms.Normalize(
+                [0.5] * img_chn, [0.5] * img_chn, inplace=True),
         ]
     )
 

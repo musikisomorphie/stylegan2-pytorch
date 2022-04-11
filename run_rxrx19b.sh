@@ -1,0 +1,2 @@
+python -m torch.distributed.launch --nproc_per_node=1 --master_port=54567 train.py \
+        --batch 8 --iter 800000 --size 128  --check_save /root/Data/non_IID/encoder/rxrx19b_cell/  /root/Data/non_IID/decoder/rxrx19b_cell_lmdb/

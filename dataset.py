@@ -1,6 +1,7 @@
 from io import BytesIO
 
 import lmdb
+import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 
@@ -24,6 +25,7 @@ class MultiResolutionDataset(Dataset):
 
         self.resolution = resolution
         self.transform = transform
+        self.path = path
 
     def __len__(self):
         return self.length
@@ -35,6 +37,11 @@ class MultiResolutionDataset(Dataset):
 
         buffer = BytesIO(img_bytes)
         img = Image.open(buffer)
+        img = np.asarray(img)
+        if 'rxrx19b' in self.path:
+            col = img.shape[1] // 2
+            img = np.concatenate((img[:, :col],
+                                  img[:, col:]), axis=-1)
         img = self.transform(img)
 
         return img
