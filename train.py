@@ -551,7 +551,7 @@ if __name__ == "__main__":
         ]
     )
 
-    dataset = MultiResolutionDataset(args.path, transform, args.size)
+    dataset = MultiResolutionDataset(args.path, transform, args.size, args.channel)
     loader = data.DataLoader(
         dataset,
         batch_size=args.batch,
