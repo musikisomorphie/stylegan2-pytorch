@@ -45,7 +45,7 @@ class MultiResolutionDataset(Dataset):
                 img = np.concatenate((img[:, :col],
                                       img[:, col:]), axis=-1)
             else:
-                img = img[:, self.chn]
+                img = np.expand_dims(img[:, self.chn], 1)
         img = self.transform(img)
 
         return img
