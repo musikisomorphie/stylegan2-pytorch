@@ -308,12 +308,13 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                     g_ema.eval()
                     sample, _ = g_ema([sample_z])
                     if 'rxrx19b' in args.path:
-                        n_sample = args.n_sample // 2
-                        s0 = sample[:n_sample, :3].clone()
-                        s1 = sample[:n_sample, 3:].clone()
-                        sample = sample[:, :3]
-                        sample[::2] = s0
-                        sample[1::2] = s1
+                        if args.channel == -1:
+                            n_sample = args.n_sample // 2
+                            s0 = sample[:n_sample, :3].clone()
+                            s1 = sample[:n_sample, 3:].clone()
+                            sample = sample[:, :3]
+                            sample[::2] = s0
+                            sample[1::2] = s1
                         
                     utils.save_image(
                         sample,
@@ -438,7 +439,13 @@ if __name__ == "__main__":
         default=256,
         help="probability update interval of the adaptive augmentation",
     )
-
+    parser.add_argument(
+        "--channel",
+        type=int,
+        default=-1,
+        choices=[0, 1, 2, 3, 4, 5, -1],
+        help="either train the generator with single channel (chn = 1,...,5) or all the channels (-1)",
+    )
     parser.add_argument("--check_save", type=str, help="path to the train output")
 
     args = parser.parse_args()
@@ -462,7 +469,9 @@ if __name__ == "__main__":
     elif args.arch == 'swagan':
         from swagan import Generator, Discriminator
 
-    img_chn = 6 if 'rxrx19b' in args.path else 3
+    img_chn = 3 
+    if 'rxrx19b' in args.path:
+        img_chn = 6 if args.channel == -1 else 1
     generator = Generator(
         args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)

@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 
 
 class MultiResolutionDataset(Dataset):
-    def __init__(self, path, transform, resolution=256):
+    def __init__(self, path, transform, resolution=256, chn=-1):
         self.env = lmdb.open(
             path,
             max_readers=32,
@@ -26,6 +26,7 @@ class MultiResolutionDataset(Dataset):
         self.resolution = resolution
         self.transform = transform
         self.path = path
+        self.chn = chn
 
     def __len__(self):
         return self.length
@@ -39,9 +40,12 @@ class MultiResolutionDataset(Dataset):
         img = Image.open(buffer)
         img = np.asarray(img)
         if 'rxrx19b' in self.path:
-            col = img.shape[1] // 2
-            img = np.concatenate((img[:, :col],
-                                  img[:, col:]), axis=-1)
+            if self.chn == -1:
+                col = img.shape[1] // 2
+                img = np.concatenate((img[:, :col],
+                                      img[:, col:]), axis=-1)
+            else:
+                img = img[:, self.chn]
         img = self.transform(img)
 
         return img
