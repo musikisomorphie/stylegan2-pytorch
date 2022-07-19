@@ -39,10 +39,14 @@ class MultiResolutionDataset(Dataset):
         buffer = BytesIO(img_bytes)
         img = Image.open(buffer)
         img = np.asarray(img)
-        if 'rxrx19b' in self.path:
-            col = img.shape[1] // 2
-            img = np.concatenate((img[:, :col],
-                                  img[:, col:]), axis=-1)
+        if 'rxrx19' in self.path:
+            col = 3
+            if 'rxrx19a' in self.path:
+                img = np.concatenate((img[:, :col],
+                                      img[:, col:-1]), axis=-1)
+            elif 'rxrx19b' in self.path:
+                img = np.concatenate((img[:, :col],
+                                      img[:, col:]), axis=-1)
             if self.chn != -1:
                 img = np.expand_dims(img[:, :, self.chn], -1)
         img = self.transform(img)

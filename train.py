@@ -307,9 +307,14 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                 with torch.no_grad():
                     g_ema.eval()
                     sample, _ = g_ema([sample_z])
-                    if 'rxrx19b' in args.path:
+                    if 'rxrx19' in args.path:
                         if args.channel == -1:
                             n_sample = args.n_sample // 2
+                            if 'rxrx19a' in args.path:
+                                assert sample.shape[1] == 5
+                                mito = torch.zeros(sample.shape[0], 1, 
+                                                   sample.shape[2], sample.shape[3])
+                                sample = torch.cat((sample, mito.to(sample)), dim=1)
                             s0 = sample[:n_sample, :3].clone()
                             s1 = sample[:n_sample, 3:].clone()
                             sample = sample[:, :3]
@@ -470,8 +475,11 @@ if __name__ == "__main__":
         from swagan import Generator, Discriminator
 
     img_chn = 3 
-    if 'rxrx19b' in args.path:
-        img_chn = 6 if args.channel == -1 else 1
+    if 'rxrx19' in args.path:
+        if args.channel == -1:
+            img_chn = 5 if 'rxrx19a' in args.path else 6
+        else:
+            img_chn = 1
     generator = Generator(
         args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
