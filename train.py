@@ -312,7 +312,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                             n_sample = args.n_sample // 2
                             if 'rxrx19a' in args.path:
                                 assert sample.shape[1] == 5
-                                mito = torch.zeros(sample.shape[0], 1, 
+                                mito = -torch.ones(sample.shape[0], 1, 
                                                    sample.shape[2], sample.shape[3])
                                 sample = torch.cat((sample, mito.to(sample)), dim=1)
                             s0 = sample[:n_sample, :3].clone()
