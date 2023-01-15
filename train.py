@@ -303,7 +303,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                     }
                 )
 
-            if i % 1000 == 0:
+            if (i + 1) % 10000 == 0:
                 with torch.no_grad():
                     g_ema.eval()
                     sample, _ = g_ema([sample_z])
@@ -324,13 +324,13 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                     utils.save_image(
                         sample,
                         str(check_save / 'sample' /
-                            '{}.png'.format(str(i).zfill(6))),
+                            '{}.png'.format(str(i + 1).zfill(6))),
                         nrow=int(args.n_sample ** 0.5),
                         normalize=True,
                         range=(-1, 1),
                     )
 
-            if i % 10000 == 0:
+            if (i + 1) % 50000 == 0:
                 torch.save(
                     {
                         "g": g_module.state_dict(),
@@ -342,7 +342,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                         "ada_aug_p": ada_aug_p,
                     },
                     str(check_save / 'checkpoint' /
-                        '{}.pt'.format(str(i).zfill(6))),
+                        '{}.pt'.format(str(i + 1).zfill(6))),
                 )
 
 
