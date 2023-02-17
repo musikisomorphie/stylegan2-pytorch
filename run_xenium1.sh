@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=1 python train.py \
+CUDA_VISIBLE_DEVICES=1 taskset -c 32-63 python train.py \
     /raid/jiqing/Data/Xenium/GAN/ \
     --batch=8 \
     --iter=400000 \
@@ -6,7 +6,7 @@ CUDA_VISIBLE_DEVICES=1 python train.py \
     --channel=-1 \
     --check_save=/raid/jiqing/Data/Xenium/GAN/decoder2/
 
-CUDA_VISIBLE_DEVICES=1 python train.py \
+CUDA_VISIBLE_DEVICES=1 taskset -c 32-63 python train.py \
     /raid/jiqing/Data/Xenium/GAN/ \
     --batch=8 \
     --iter=400000 \
