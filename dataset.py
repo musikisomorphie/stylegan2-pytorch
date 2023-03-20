@@ -61,8 +61,10 @@ class SODataset(Dataset):
     def __init__(self, data, gene, path, transform):
         if data == 'CosMx':
             self.ext = 'flo.png'
-        elif data in ('Xenium', 'Visium'):
+        elif data == 'Xenium':
             self.ext = 'hne.png'
+        elif data == 'Visium':
+            self.ext = '.npz'
 
         self.data = data
         self.gene = gene
@@ -73,13 +75,19 @@ class SODataset(Dataset):
         return len(self.paths)
 
     def __getitem__(self, index):
-        img = Image.open(str(self.paths[index]))
-        img = np.array(img)
-        img = self.transform(img)
-
-        rna = str(self.paths[index]).replace(self.ext, 'rna.npz')
-        rna = sparse.load_npz(rna).sum((0, 1)).todense()
-        rna = torch.from_numpy(rna).to(img).float()
-        if self.data == 'Xenium':
-            rna = rna[:self.gene]
+        if self.data in ('CosMx', 'Xenium'):
+            img = Image.open(str(self.paths[index]))
+            img = np.array(img)
+            img = self.transform(img)
+            rna = str(self.paths[index]).replace(self.ext, 'rna.npz')
+            rna = sparse.load_npz(rna).sum((0, 1)).todense()
+            rna = torch.from_numpy(rna).to(img).float()
+            if self.data == 'Xenium':
+                rna = rna[:self.gene]
+        elif self.data == 'Visium':
+            npz = np.load(str(self.paths[index]))
+            img = npz['img'][64:-64, 64:-64]
+            img = self.transform(img)
+            rna = np.array(npz['key_melanoma_marker'])
+            rna = torch.from_numpy(rna).to(img).float()
         return img, rna
