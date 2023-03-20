@@ -19,7 +19,7 @@ except ImportError:
     wandb = None
 
 
-from dataset import MultiResolutionDataset
+from dataset import SODataset
 from distributed import (
     get_rank,
     synchronize,
@@ -31,6 +31,18 @@ from op import conv2d_gradfix
 from non_leaking import augment, AdaptiveAugment
 
 from pathlib import Path
+
+def mixing_gene(gene, prob, mix=False):
+    if mix:
+        sz = gene.shape[0]
+        idx = torch.randperm(sz)
+        gene = gene[idx]
+        gene = (gene[:sz//2] + gene[sz//2:]) / 2
+    if prob > 0 and random.random() < prob:
+        return [gene, gene + torch.randn_like(gene)]
+    else:
+        return [gene]
+
 
 def data_sampler(dataset, shuffle, distributed):
     if distributed:
@@ -167,13 +179,14 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
 
             break
 
-        real_img = next(loader)
-        real_img = real_img.to(device)
+        real_img, real_gene = next(loader)
+        real_img, real_gene = real_img.to(device), real_gene.to(device)
 
         requires_grad(generator, False)
         requires_grad(discriminator, True)
 
-        noise = mixing_noise(args.batch, args.latent, args.mixing, device)
+        # noise = mixing_noise(args.batch, args.latent, args.mixing, device)
+        noise = mixing_gene(real_gene, args.mixing)
         fake_img, _ = generator(noise)
 
         if args.augment:
@@ -223,7 +236,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(generator, True)
         requires_grad(discriminator, False)
 
-        noise = mixing_noise(args.batch, args.latent, args.mixing, device)
+        # noise = mixing_noise(args.batch, args.latent, args.mixing, device)
+        noise = mixing_gene(real_gene, args.mixing)
         fake_img, _ = generator(noise)
 
         if args.augment:
@@ -241,8 +255,9 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         g_regularize = i % args.g_reg_every == 0
 
         if g_regularize:
-            path_batch_size = max(1, args.batch // args.path_batch_shrink)
-            noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
+            # path_batch_size = max(1, args.batch // args.path_batch_shrink)
+            # noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
+            noise = mixing_gene(real_gene, args.mixing, True)
             fake_img, latents = generator(noise, return_latents=True)
 
             path_loss, mean_path_length, path_lengths = g_path_regularize(
@@ -306,7 +321,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
             if (i + 1) % 10000 == 0:
                 with torch.no_grad():
                     g_ema.eval()
-                    sample, _ = g_ema([sample_z])
+                    sample, _ = g_ema([real_gene])
                     if 'rxrx19' in args.path:
                         if args.channel == -1:
                             n_sample = args.n_sample // 2
@@ -320,12 +335,12 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                             sample = sample[:, :3]
                             sample[::2] = s0
                             sample[1::2] = s1
-                        
+                    sample = torch.cat([sample, real_img], axis=0)    
                     utils.save_image(
                         sample,
                         str(check_save / 'sample' /
                             '{}.png'.format(str(i + 1).zfill(6))),
-                        nrow=int(args.n_sample ** 0.5),
+                        nrow=real_img.shape[0],
                         normalize=True,
                         range=(-1, 1),
                     )
@@ -352,6 +367,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="StyleGAN2 trainer")
 
     parser.add_argument("path", type=str, help="path to the lmdb dataset")
+    parser.add_argument("--data", type=str, help="name of the dataset")
+    parser.add_argument("--gene", type=int, help="num of the genes")
     parser.add_argument('--arch', type=str, default='stylegan2', help='model architectures (stylegan2 | swagan)')
     parser.add_argument(
         "--iter", type=int, default=800000, help="total training iterations"
@@ -481,13 +498,13 @@ if __name__ == "__main__":
         else:
             img_chn = 1
     generator = Generator(
-        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
+        args.size, args.gene, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
     discriminator = Discriminator(
         args.size, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
     g_ema = Generator(
-        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
+        args.size, args.gene, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
     g_ema.eval()
     accumulate(g_ema, generator, 0)
@@ -559,12 +576,14 @@ if __name__ == "__main__":
         ]
     )
 
-    dataset = MultiResolutionDataset(args.path, transform, args.size, args.channel)
+    dataset = SODataset(args.data, args.gene, args.path, transform)
     loader = data.DataLoader(
         dataset,
         batch_size=args.batch,
         sampler=data_sampler(dataset, shuffle=True, distributed=args.distributed),
-        drop_last=True,
+        **{'drop_last': True,
+           'num_workers': 8,
+           'pin_memory': True}
     )
 
     if get_rank() == 0 and wandb is not None and args.wandb:

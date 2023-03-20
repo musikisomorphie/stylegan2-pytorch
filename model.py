@@ -392,6 +392,7 @@ class Generator(nn.Module):
     def __init__(
         self,
         size,
+        gene_dim,
         style_dim,
         n_mlp,
         channel_multiplier=2,
@@ -403,14 +404,16 @@ class Generator(nn.Module):
 
         self.size = size
 
+        self.gene_dim = gene_dim
         self.style_dim = style_dim
 
         layers = [PixelNorm()]
 
         for i in range(n_mlp):
+            in_dim = gene_dim if i == 0 else style_dim
             layers.append(
                 EqualLinear(
-                    style_dim, style_dim, lr_mul=lr_mlp, activation="fused_lrelu"
+                    in_dim, style_dim, lr_mul=lr_mlp, activation="fused_lrelu"
                 )
             )
 
@@ -487,8 +490,9 @@ class Generator(nn.Module):
         return noises
 
     def mean_latent(self, n_latent):
+        # TODO: here should be mean computed on gene expr
         latent_in = torch.randn(
-            n_latent, self.style_dim, device=self.input.input.device
+            n_latent, self.gene_dim, device=self.input.input.device
         )
         latent = self.style(latent_in).mean(0, keepdim=True)
 

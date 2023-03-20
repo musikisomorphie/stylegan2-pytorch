@@ -1,8 +1,11 @@
 from io import BytesIO
 
 import lmdb
+import torch
+import sparse
 import numpy as np
 from PIL import Image
+from pathlib import Path
 from torch.utils.data import Dataset
 
 
@@ -21,7 +24,8 @@ class MultiResolutionDataset(Dataset):
             raise IOError('Cannot open lmdb dataset', path)
 
         with self.env.begin(write=False) as txn:
-            self.length = int(txn.get('length'.encode('utf-8')).decode('utf-8'))
+            self.length = int(
+                txn.get('length'.encode('utf-8')).decode('utf-8'))
 
         self.resolution = resolution
         self.transform = transform
@@ -45,9 +49,37 @@ class MultiResolutionDataset(Dataset):
                                   img[:, col:]), axis=-1)
             if 'rxrx19a' in self.path:
                 img = img[:, :, :-1]
-                
+
             if self.chn != -1:
                 img = np.expand_dims(img[:, :, self.chn], -1)
         img = self.transform(img)
 
         return img
+
+
+class SODataset(Dataset):
+    def __init__(self, data, gene, path, transform):
+        if data == 'CosMx':
+            self.ext = 'flo.png'
+        elif data in ('Xenium', 'Visium'):
+            self.ext = 'hne.png'
+
+        self.data = data
+        self.gene = gene
+        self.paths = list(Path(path).rglob(f'*{self.ext}'))
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.paths)
+
+    def __getitem__(self, index):
+        img = Image.open(str(self.paths[index]))
+        img = np.array(img)
+        img = self.transform(img)
+
+        rna = str(self.paths[index]).replace(self.ext, 'rna.npz')
+        rna = sparse.load_npz(rna).sum((0, 1)).todense()
+        rna = torch.from_numpy(rna).to(img).float()
+        if self.data == 'Xenium':
+            rna = rna[:self.gene]
+        return img, rna

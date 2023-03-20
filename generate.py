@@ -69,7 +69,7 @@ if __name__ == "__main__":
     args.n_mlp = 8
 
     g_ema = Generator(
-        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
+        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=1
     ).to(device)
     checkpoint = torch.load(args.ckpt)
 
