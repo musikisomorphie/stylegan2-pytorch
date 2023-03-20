@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0 taskset -c 0-31 python train.py \
+CUDA_VISIBLE_DEVICES=5 taskset -c 160-191 python train.py \
    Data/Visium/GAN/crop \
     --data=Visium \
     --gene=61 \
