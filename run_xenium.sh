@@ -6,4 +6,5 @@ CUDA_VISIBLE_DEVICES=1 taskset -c 32-63 python train.py \
     --iter=400000 \
     --size=128 \
     --channel=-1 \
-    --check_save=Data/Xenium/GAN/decoder0/
+    --path_regularize=0.01 \
+    --check_save=Data/Xenium/GAN/dec0/

@@ -317,14 +317,16 @@ class NoiseInjection(nn.Module):
 
 
 class ConstantInput(nn.Module):
-    def __init__(self, channel, size=4):
+    def __init__(self, channel, size=8):
         super().__init__()
 
-        self.input = nn.Parameter(torch.randn(1, channel, size, size))
+        self.channel = channel
 
+        self.weight = nn.Parameter(torch.randn(1, 1, size, size))
     def forward(self, input):
         batch = input.shape[0]
-        out = self.input.repeat(batch, 1, 1, 1)
+        input = input.unsqueeze(-1).unsqueeze(-1)
+        out = self.weight * input
 
         return out
 
@@ -338,7 +340,7 @@ class StyledConv(nn.Module):
         style_dim,
         upsample=False,
         blur_kernel=[1, 3, 3, 1],
-        demodulate=True,
+        demodulate=False,
     ):
         super().__init__()
 
@@ -419,8 +421,20 @@ class Generator(nn.Module):
 
         self.style = nn.Sequential(*layers)
 
+        ctxs = [PixelNorm()]
+
+        for i in range(n_mlp):
+            in_dim = gene_dim if i == 0 else style_dim
+            ctxs.append(
+                EqualLinear(
+                    in_dim, style_dim, lr_mul=lr_mlp, activation="fused_lrelu"
+                )
+            )
+        self.ctx = nn.Sequential(*ctxs)
+        
+
         self.channels = {
-            4: 512,
+            # 4: 512,
             8: 512,
             16: 512,
             32: 512,
@@ -431,28 +445,28 @@ class Generator(nn.Module):
             1024: 16 * channel_multiplier,
         }
 
-        self.input = ConstantInput(self.channels[4])
+        self.input = ConstantInput(self.channels[8])
         self.conv1 = StyledConv(
-            self.channels[4], self.channels[4], 3, style_dim, blur_kernel=blur_kernel
+            self.channels[8], self.channels[8], 3, style_dim, blur_kernel=blur_kernel
         )
-        self.to_rgb1 = ToRGB(self.channels[4], style_dim, upsample=False, img_chn=img_chn)
+        self.to_rgb1 = ToRGB(self.channels[8], style_dim, upsample=False, img_chn=img_chn)
 
         self.log_size = int(math.log(size, 2))
-        self.num_layers = (self.log_size - 2) * 2 + 1
+        self.num_layers = (self.log_size - 2) * 2 - 1
 
         self.convs = nn.ModuleList()
         self.upsamples = nn.ModuleList()
         self.to_rgbs = nn.ModuleList()
         self.noises = nn.Module()
 
-        in_channel = self.channels[4]
+        in_channel = self.channels[8]
 
         for layer_idx in range(self.num_layers):
-            res = (layer_idx + 5) // 2
+            res = (layer_idx + 7) // 2
             shape = [1, 1, 2 ** res, 2 ** res]
             self.noises.register_buffer(f"noise_{layer_idx}", torch.randn(*shape))
 
-        for i in range(3, self.log_size + 1):
+        for i in range(4, self.log_size + 1):
             out_channel = self.channels[2 ** i]
 
             self.convs.append(
@@ -476,7 +490,7 @@ class Generator(nn.Module):
 
             in_channel = out_channel
 
-        self.n_latent = self.log_size * 2 - 2
+        self.n_latent = self.log_size * 2 - 4
 
     def make_noise(self):
         device = self.input.input.device
@@ -513,7 +527,7 @@ class Generator(nn.Module):
         randomize_noise=True,
     ):
         if not input_is_latent:
-            styles = [self.style(s) for s in styles]
+            styles = [self.style(styles[0]), self.ctx(styles[1])]
 
         if noise is None:
             if randomize_noise:
@@ -543,15 +557,15 @@ class Generator(nn.Module):
                 latent = styles[0]
 
         else:
-            if inject_index is None:
-                inject_index = random.randint(1, self.n_latent - 1)
+            # if inject_index is None:
+            #     inject_index = random.randint(1, self.n_latent - 1)
 
-            latent = styles[0].unsqueeze(1).repeat(1, inject_index, 1)
-            latent2 = styles[1].unsqueeze(1).repeat(1, self.n_latent - inject_index, 1)
+            latent0 = styles[0]
+            latent = styles[1].unsqueeze(1).repeat(1, self.n_latent, 1)
 
-            latent = torch.cat([latent, latent2], 1)
+            # latent = torch.cat([latent, latent2], 1)
 
-        out = self.input(latent)
+        out = self.input(latent0)
         out = self.conv1(out, latent[:, 0], noise=noise[0])
 
         skip = self.to_rgb1(out, latent[:, 1])

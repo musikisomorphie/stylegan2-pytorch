@@ -6,4 +6,5 @@ CUDA_VISIBLE_DEVICES=0 taskset -c 0-31 python train.py \
     --iter=400000 \
     --size=128 \
     --channel=-1 \
-    --check_save=Data/CosMx/GAN/decoder0/
+    --path_regularize=0.01 \
+    --check_save=Data/CosMx/GAN/dec0/

@@ -32,16 +32,11 @@ from non_leaking import augment, AdaptiveAugment
 
 from pathlib import Path
 
-def mixing_gene(gene, prob, mix=False):
-    if mix:
-        sz = gene.shape[0]
-        idx = torch.randperm(sz)
-        gene = gene[idx]
-        gene = (gene[:sz//2] + gene[sz//2:]) / 2
+def mixing_gene(gene, prob):
     if prob > 0 and random.random() < prob:
-        return [gene, gene + torch.randn_like(gene)]
+        return [torch.rand_like(gene), gene + torch.rand_like(gene)]
     else:
-        return [gene]
+        return [torch.rand_like(gene), gene]
 
 
 def data_sampler(dataset, shuffle, distributed):
@@ -257,29 +252,31 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         if g_regularize:
             # path_batch_size = max(1, args.batch // args.path_batch_shrink)
             # noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
-            noise = mixing_gene(real_gene, args.mixing, True)
+            noise = mixing_gene(real_gene, 0)
             fake_img, latents = generator(noise, return_latents=True)
+            l2_loss = F.mse_loss(fake_img, real_img)
 
-            path_loss, mean_path_length, path_lengths = g_path_regularize(
-                fake_img, latents, mean_path_length
-            )
+            # path_loss, mean_path_length, path_lengths = g_path_regularize(
+            #     fake_img, latents, mean_path_length
+            # )
 
             generator.zero_grad()
-            weighted_path_loss = args.path_regularize * args.g_reg_every * path_loss
+            weighted_l2_loss = args.path_regularize * args.g_reg_every * l2_loss
 
-            if args.path_batch_shrink:
-                weighted_path_loss += 0 * fake_img[0, 0, 0, 0]
+            # if args.path_batch_shrink:
+            #     weighted_path_loss += 0 * fake_img[0, 0, 0, 0]
 
-            weighted_path_loss.backward()
+            weighted_l2_loss.backward()
 
             g_optim.step()
 
-            mean_path_length_avg = (
-                reduce_sum(mean_path_length).item() / get_world_size()
-            )
+            # mean_path_length_avg = (
+            #     reduce_sum(mean_path_length).item() / get_world_size()
+            # )
 
-        loss_dict["path"] = path_loss
-        loss_dict["path_length"] = path_lengths.mean()
+        # loss_dict["path"] = path_loss
+        # loss_dict["path_length"] = path_lengths.mean()
+        loss_dict["l2"] = l2_loss
 
         accumulate(g_ema, g_module, accum)
 
@@ -288,16 +285,17 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         d_loss_val = loss_reduced["d"].mean().item()
         g_loss_val = loss_reduced["g"].mean().item()
         r1_val = loss_reduced["r1"].mean().item()
-        path_loss_val = loss_reduced["path"].mean().item()
+        # path_loss_val = loss_reduced["path"].mean().item()
         real_score_val = loss_reduced["real_score"].mean().item()
         fake_score_val = loss_reduced["fake_score"].mean().item()
-        path_length_val = loss_reduced["path_length"].mean().item()
+        # path_length_val = loss_reduced["path_length"].mean().item()
+        l2_loss_val = loss_reduced["l2"].mean().item()
 
         if get_rank() == 0:
             pbar.set_description(
                 (
                     f"d: {d_loss_val:.4f}; g: {g_loss_val:.4f}; r1: {r1_val:.4f}; "
-                    f"path: {path_loss_val:.4f}; mean path: {mean_path_length_avg:.4f}; "
+                    f"l2: {l2_loss_val:.4f};"
                     f"augment: {ada_aug_p:.4f}"
                 )
             )
@@ -310,18 +308,16 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                         "Augment": ada_aug_p,
                         "Rt": r_t_stat,
                         "R1": r1_val,
-                        "Path Length Regularization": path_loss_val,
-                        "Mean Path Length": mean_path_length,
+                        "L2": l2_loss_val,
                         "Real Score": real_score_val,
                         "Fake Score": fake_score_val,
-                        "Path Length": path_length_val,
                     }
                 )
 
             if (i + 1) % 10000 == 0:
                 with torch.no_grad():
                     g_ema.eval()
-                    sample, _ = g_ema([real_gene])
+                    sample, _ = g_ema(mixing_gene(real_gene, 0))
                     if 'rxrx19' in args.path:
                         if args.channel == -1:
                             n_sample = args.n_sample // 2
