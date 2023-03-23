@@ -1,9 +1,9 @@
-CUDA_VISIBLE_DEVICES=5 taskset -c 160-191 python train.py \
+CUDA_VISIBLE_DEVICES=2 taskset -c 64-95 python train.py \
    Data/Visium/GAN/crop \
     --data=Visium \
     --gene=61 \
     --batch=8 \
-    --iter=200000 \
+    --iter=400000 \
     --size=128 \
     --channel=-1 \
-    --check_save=Data/Visium/GAN/decoder0/
+    --check_save=Data/Visium/GAN/d0/

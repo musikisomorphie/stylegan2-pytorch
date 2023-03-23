@@ -32,16 +32,37 @@ from non_leaking import augment, AdaptiveAugment
 
 from pathlib import Path
 
-def mixing_gene(gene, prob, mix=False):
+def linspace(start, stop, num):
+    """
+    Creates a tensor of shape [num, *start.shape] whose values are evenly spaced from start to end, inclusive.
+    Replicates but the multi-dimensional bahaviour of numpy.linspace in PyTorch.
+    """
+    # create a tensor of 'num' steps from 0 to 1
+    steps = torch.arange(num, dtype=torch.float32).to(start) / (num - 1)
+
+    # reshape the 'steps' tensor to [-1, *([1]*start.ndim)] to allow for broadcastings
+    # - using 'steps.reshape([-1, *([1]*start.ndim)])' would be nice here but torchscript
+    #   "cannot statically infer the expected size of a list in this contex", hence the code below
+    for i in range(start.ndim):
+        steps = steps.unsqueeze(-1)
+
+    # the output starts at 'start' and increments until 'stop' in each dimension
+    out = start[None] + steps*(stop - start)[None]
+
+    return out
+
+def mixing_gene(gene, prob=None, mix=False, fix_noise=False):
     if mix:
         sz = gene.shape[0]
         idx = torch.randperm(sz)
         gene = gene[idx]
         gene = (gene[:sz//2] + gene[sz//2:]) / 2
-    if prob > 0 and random.random() < prob:
-        return [gene, gene + torch.randn_like(gene)]
+    if fix_noise:
+        noise = torch.randn(512)
+        noise = noise.unsqueeze(0).repeat(gene.shape[0], 1)
     else:
-        return [gene]
+        noise = torch.randn(gene.shape[0], 512)
+    return [noise.to(gene), gene]
 
 
 def data_sampler(dataset, shuffle, distributed):
@@ -321,7 +342,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
             if (i + 1) % 10000 == 0:
                 with torch.no_grad():
                     g_ema.eval()
-                    sample, _ = g_ema([real_gene])
+                    noise = mixing_gene(real_gene, fix_noise=True)
+                    sample, _ = g_ema(noise)
                     if 'rxrx19' in args.path:
                         if args.channel == -1:
                             n_sample = args.n_sample // 2
@@ -335,14 +357,17 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                             sample = sample[:, :3]
                             sample[::2] = s0
                             sample[1::2] = s1
-                    sample = torch.cat([sample, real_img], axis=0)    
+                    noise = [noise[0], 
+                             linspace(noise[1][0], noise[1][1], noise[1].shape[0])]
+                    sample1, _ = g_ema(noise)
+                    sample = torch.cat([sample, sample1, real_img], axis=0) 
                     utils.save_image(
                         sample,
                         str(check_save / 'sample' /
                             '{}.png'.format(str(i + 1).zfill(6))),
                         nrow=real_img.shape[0],
                         normalize=True,
-                        range=(-1, 1),
+                        value_range=(-1, 1),
                     )
 
             if (i + 1) % 50000 == 0:
