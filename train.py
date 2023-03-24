@@ -343,7 +343,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                 with torch.no_grad():
                     g_ema.eval()
                     noise = mixing_gene(real_gene, fix_noise=True)
-                    sample, _ = g_ema(noise)
+                    sample, _ = g_ema(noise, randomize_noise=False)
                     if 'rxrx19' in args.path:
                         if args.channel == -1:
                             n_sample = args.n_sample // 2
@@ -359,7 +359,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                             sample[1::2] = s1
                     noise = [noise[0], 
                              linspace(noise[1][0], noise[1][1], noise[1].shape[0])]
-                    sample1, _ = g_ema(noise)
+                    sample1, _ = g_ema(noise, randomize_noise=False)
                     sample = torch.cat([sample, sample1, real_img], axis=0) 
                     utils.save_image(
                         sample,
