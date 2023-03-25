@@ -91,7 +91,7 @@ class SODataset(Dataset):
             # # the resize step is inspired by clean-FID
             # img = img.resize((128, 128), resample=Image.Resampling.BICUBIC)
             # img = np.asarray(img).clip(0, 255).astype(np.uint8)
-            # img = self.transform(img)
+            img = self.transform(img)
             rna = npz['key_melanoma_marker']
             rna = torch.from_numpy(rna).to(img).float()
         return img, rna
