@@ -86,12 +86,12 @@ class SODataset(Dataset):
                 rna = rna[:self.gene]
         elif self.data == 'Visium':
             npz = np.load(str(self.paths[index]))
-            img = npz['img'][96:-96, 96:-96]
+            img = npz['img'][64:-64, 64:-64]
             img = Image.fromarray(img)
-            # the resize step is inspired by clean-FID
-            img = img.resize((128, 128), resample=Image.Resampling.BICUBIC)
-            img = np.asarray(img).clip(0, 255).astype(np.uint8)
-            img = self.transform(img)
+            # # the resize step is inspired by clean-FID
+            # img = img.resize((128, 128), resample=Image.Resampling.BICUBIC)
+            # img = np.asarray(img).clip(0, 255).astype(np.uint8)
+            # img = self.transform(img)
             rna = npz['key_melanoma_marker']
             rna = torch.from_numpy(rna).to(img).float()
         return img, rna
