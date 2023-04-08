@@ -68,7 +68,7 @@ def mixing_gene(gene, meta,
     noise = noise.to(gene)
     if meta_use:
         noise += meta
-    return [noise, gene], meta
+    return [noise, gene]
 
 
 def data_sampler(dataset, shuffle, distributed):
@@ -124,11 +124,8 @@ def g_nonsaturating_loss(fake_pred):
     return loss
 
 
-def g_path_regularize(fake_img, meta, meta_use, latents, mean_path_length, decay=0.01):
-    noise = torch.randn_like(fake_img)
-    if meta_use:
-        noise += meta
-    noise /= math.sqrt(
+def g_path_regularize(fake_img, latents, mean_path_length, decay=0.01):
+    noise = torch.randn_like(fake_img) / math.sqrt(
         fake_img.shape[2] * fake_img.shape[3]
     )
     grad, = autograd.grad(
@@ -218,7 +215,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(discriminator, True)
 
         # noise = mixing_noise(args.batch, args.latent, args.mixing, device)
-        noise = mixing_gene(real_gene, real_meta, args.meta_use)[0]
+        noise = mixing_gene(real_gene, real_meta, args.meta_use)
         fake_img, _ = generator(noise)
 
         if args.augment:
@@ -269,7 +266,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(discriminator, False)
 
         # noise = mixing_noise(args.batch, args.latent, args.mixing, device)
-        noise = mixing_gene(real_gene, real_meta, args.meta_use)[0]
+        noise = mixing_gene(real_gene, real_meta, args.meta_use)
         fake_img, _ = generator(noise)
 
         if args.augment:
@@ -289,11 +286,11 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         if g_regularize:
             # path_batch_size = max(1, args.batch // args.path_batch_shrink)
             # noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
-            noise, meta = mixing_gene(real_gene, real_meta, args.meta_use, True)
+            noise = mixing_gene(real_gene, real_meta, args.meta_use, True)
             fake_img, latents = generator(noise, return_latents=True)
 
             path_loss, mean_path_length, path_lengths = g_path_regularize(
-                fake_img, meta, args.meta_use, latents, mean_path_length
+                fake_img, latents, mean_path_length
             )
 
             generator.zero_grad()
@@ -353,7 +350,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
             if (i + 1) % 10000 == 0:
                 with torch.no_grad():
                     g_ema.eval()
-                    noise = mixing_gene(real_gene, real_meta, args.meta_use, fix_noise=True)[0]
+                    noise = mixing_gene(real_gene, real_meta, args.meta_use, fix_noise=True)
                     sample, _ = g_ema(noise, randomize_noise=False)
                     if 'rxrx19' in args.path:
                         if args.channel == -1:
