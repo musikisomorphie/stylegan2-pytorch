@@ -370,13 +370,13 @@ class StyledConv(nn.Module):
 
 
 class ToRGB(nn.Module):
-    def __init__(self, in_channel, style_dim, upsample=True, blur_kernel=[1, 3, 3, 1], img_chn=3):
+    def __init__(self, in_channel, style_dim, kernel_size, upsample=True, blur_kernel=[1, 3, 3, 1], img_chn=3):
         super().__init__()
 
         if upsample:
             self.upsample = Upsample(blur_kernel)
 
-        self.conv = ModulatedConv2d(in_channel, img_chn, 3, style_dim, demodulate=False)
+        self.conv = ModulatedConv2d(in_channel, img_chn, kernel_size, style_dim, demodulate=False)
         self.bias = nn.Parameter(torch.zeros(1, img_chn, 1, 1))
 
     def forward(self, input, style, drive, skip=None):
@@ -397,6 +397,7 @@ class Generator(nn.Module):
         size,
         gene_dim,
         style_dim,
+        kernel_size,
         n_mlp,
         channel_multiplier=2,
         blur_kernel=[1, 3, 3, 1],
@@ -409,6 +410,7 @@ class Generator(nn.Module):
 
         self.gene_dim = gene_dim
         self.style_dim = style_dim
+        self.kernel_size = kernel_size
 
         layers = [PixelNorm()]
 
@@ -435,9 +437,9 @@ class Generator(nn.Module):
 
         self.input = ConstantInput(self.channels[4])
         self.conv1 = StyledConv(
-            self.channels[4], self.channels[4], 3, style_dim, blur_kernel=blur_kernel
+            self.channels[4], self.channels[4], kernel_size, style_dim, blur_kernel=blur_kernel
         )
-        self.to_rgb1 = ToRGB(self.channels[4], style_dim, upsample=False, img_chn=img_chn)
+        self.to_rgb1 = ToRGB(self.channels[4], style_dim, kernel_size, upsample=False, img_chn=img_chn)
 
         self.log_size = int(math.log(size, 2))
         self.num_layers = (self.log_size - 2) * 2 + 1
@@ -461,7 +463,7 @@ class Generator(nn.Module):
                 StyledConv(
                     in_channel,
                     out_channel,
-                    3,
+                    kernel_size,
                     style_dim,
                     upsample=True,
                     blur_kernel=blur_kernel,
@@ -470,25 +472,26 @@ class Generator(nn.Module):
 
             self.convs.append(
                 StyledConv(
-                    out_channel, out_channel, 3, style_dim, blur_kernel=blur_kernel
+                    out_channel, out_channel, kernel_size, style_dim, blur_kernel=blur_kernel
                 )
             )
 
-            self.to_rgbs.append(ToRGB(out_channel, style_dim, img_chn=img_chn))
+            self.to_rgbs.append(ToRGB(out_channel, style_dim, kernel_size, img_chn=img_chn))
 
             in_channel = out_channel
 
         self.n_latent = self.log_size * 2 - 2
-        layers = []
-        for i in range(n_mlp):
-            in_dim = gene_dim if i == 0 else style_dim
-            out_dim = self.n_latent * 9 if i == n_mlp - 1 else style_dim
-            layers.append(
-                EqualLinear(
-                    in_dim, out_dim, lr_mul=lr_mlp, activation="fused_lrelu"
+        if self.gene_dim > 0:
+            layers = []
+            for i in range(n_mlp):
+                in_dim = self.gene_dim if i == 0 else style_dim
+                out_dim = self.n_latent * (kernel_size ** 2) if i == n_mlp - 1 else style_dim
+                layers.append(
+                    EqualLinear(
+                        in_dim, out_dim, lr_mul=lr_mlp, activation="fused_lrelu"
+                    )
                 )
-            )
-        self.drive = nn.Sequential(*layers)
+            self.drive = nn.Sequential(*layers)
 
     def make_noise(self):
         device = self.input.input.device
@@ -502,9 +505,9 @@ class Generator(nn.Module):
         return noises
 
     def mean_latent(self, n_latent):
-        # TODO: here should be mean computed on gene expr
+        # TODO: this impl is deprecated 
         latent_in = torch.randn(
-            n_latent, self.gene_dim, device=self.input.input.device
+            n_latent, self.style_dim, device=self.input.input.device
         )
         latent = self.style(latent_in).mean(0, keepdim=True)
 
@@ -527,7 +530,11 @@ class Generator(nn.Module):
         if not input_is_latent:
             latent = self.style(styles[0]).unsqueeze(1)
             latent = latent.repeat(1, self.n_latent, 1)
-            drives = self.drive(styles[1]).split(9, dim=-1)
+            if self.gene_dim > 0:
+                drives = self.drive(styles[1]).split(self.kernel_size ** 2, 
+                                                     dim=-1)
+            else:
+                drives = [None for _ in range(self.n_latent)]
 
         if noise is None:
             if randomize_noise:
@@ -536,34 +543,6 @@ class Generator(nn.Module):
                 noise = [
                     getattr(self.noises, f"noise_{i}") for i in range(self.num_layers)
                 ]
-
-        # if truncation < 1:
-        #     style_t = []
-
-        #     for style in styles:
-        #         style_t.append(
-        #             truncation_latent + truncation * (style - truncation_latent)
-        #         )
-
-        #     styles = style_t
-
-        # if len(styles) < 2:
-        #     inject_index = self.n_latent
-
-        #     if styles[0].ndim < 3:
-        #         latent = styles[0].unsqueeze(1).repeat(1, inject_index, 1)
-
-        #     else:
-        #         latent = styles[0]
-
-        # else:
-        #     if inject_index is None:
-        #         inject_index = random.randint(1, self.n_latent - 1)
-
-        #     latent = styles[0].unsqueeze(1).repeat(1, inject_index, 1)
-        #     latent2 = styles[1].unsqueeze(1).repeat(1, self.n_latent - inject_index, 1)
-
-        #     latent = torch.cat([latent, latent2], 1)
 
         out = self.input(latent)
         out = self.conv1(out, latent[:, 0], drives[0], noise=noise[0])

@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=2 taskset -c 64-95 python train.py \
+python train.py \
    Data/Visium/GAN/crop \
     --data=Visium \
     --gene=61 \
@@ -6,4 +6,6 @@ CUDA_VISIBLE_DEVICES=2 taskset -c 64-95 python train.py \
     --iter=400000 \
     --size=128 \
     --channel=-1 \
-    --check_save=Data/Visium/GAN/d0/
+    --kernel_size=5 \
+    --gene_use \
+    --check_save=Data/Visium/GAN/g0/
