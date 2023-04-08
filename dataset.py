@@ -187,6 +187,7 @@ class STDataset(WILDSDataset):
 
             self._metadata_fields = [split_scheme, ]
             self._metadata_array = list(zip(*[self._split_array.tolist()]))
+            print(self._cond_dct, self._split_dict)
         else:
             # add dummy metadata
             self._metadata_array = [[0] for _ in range(len(self._input_array))]

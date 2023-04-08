@@ -6,7 +6,8 @@ CUDA_VISIBLE_DEVICES=0 taskset -c 0-31 python train.py \
     --iter=800000 \
     --size=128 \
     --channel=-1 \
-    --gene_use \
+    --split_scheme=slide_ID_numeric \
+    --gene_use --meta_use \
     --check_save=Data/CosMx/GAN/g0/
 
 CUDA_VISIBLE_DEVICES=0 taskset -c 0-31 python train.py \
@@ -17,5 +18,5 @@ CUDA_VISIBLE_DEVICES=0 taskset -c 0-31 python train.py \
     --iter=800000 \
     --size=128 \
     --channel=-1 \
-    --gene_use --meta_use \
+    --gene_use \
     --check_save=Data/CosMx/GAN/g0/
