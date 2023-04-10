@@ -183,18 +183,18 @@ class STDataset(WILDSDataset):
                 self._split_dict = dict(zip(t_nam, [-1, 1]))
             else:
                 self._split_dict = dict(zip(t_nam, list(range(len(t_nam)))))
-            self._split_array = df[split_scheme].map(self._split_dict).values
+            _y = df[split_scheme].map(self._split_dict).values
+            self._split_array = _y
 
             self._metadata_fields = [split_scheme, ]
             self._metadata_array = list(zip(*[self._split_array.tolist()]))
-            print(self._cond_dct, self._split_dict)
+            self._y_array = torch.LongTensor((_y + 1) // 2 if len(t_nam) == 2 else _y)
+            self._y_size, self._n_classes = 1, len(t_nam)
         else:
-            # add dummy metadata
+            # add dummy metadata amd labels
             self._metadata_array = [[0] for _ in range(len(self._input_array))]
-
-        # add dummy labels
-        self._y_array = torch.ones([len(self._input_array)])
-        self._y_size, self._n_classes = 1, 1
+            self._y_array = torch.ones([len(self._input_array)]).long()
+            self._y_size, self._n_classes = 1, 2
 
     def get_input(self, idx):
         img_pth = self.img_dir / self._input_array[idx]
@@ -233,6 +233,11 @@ class STDataset(WILDSDataset):
         else:
             gene_expr = self.expr_img[idx]
             gene_expr = torch.from_numpy(gene_expr).contiguous().float()
+
+            # append label for stylegan3 conditional training
+            label = torch.nn.functional.one_hot(self._y_array[idx], 
+                                                num_classes=self._n_classes)
+            gene_expr = torch.cat([gene_expr, label])
 
             if self.trans is not None:
                 img = self.trans(img)

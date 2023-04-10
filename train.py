@@ -225,8 +225,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         else:
             real_img_aug = real_img
 
-        fake_pred = discriminator(fake_img)
-        real_pred = discriminator(real_img_aug)
+        fake_pred = discriminator(fake_img, real_gene)
+        real_pred = discriminator(real_img_aug, real_gene)
         d_loss = d_logistic_loss(real_pred, fake_pred)
 
         loss_dict["d"] = d_loss
@@ -252,7 +252,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
             else:
                 real_img_aug = real_img
 
-            real_pred = discriminator(real_img_aug)
+            real_pred = discriminator(real_img_aug, real_gene)
             r1_loss = d_r1_loss(real_pred, real_img)
 
             discriminator.zero_grad()
@@ -272,7 +272,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         if args.augment:
             fake_img, _ = augment(fake_img, ada_aug_p)
 
-        fake_pred = discriminator(fake_img)
+        fake_pred = discriminator(fake_img, real_gene)
         g_loss = g_nonsaturating_loss(fake_pred)
 
         loss_dict["g"] = g_loss
@@ -524,6 +524,16 @@ if __name__ == "__main__":
 
     args.start_iter = 0
 
+    dataset = STDataset(args.data, args.gene, transform=transform, split_scheme=args.split_scheme)
+    loader = data.DataLoader(
+        dataset,
+        batch_size=args.batch,
+        sampler=data_sampler(dataset, shuffle=True, distributed=args.distributed),
+        **{'drop_last': True,
+           'num_workers': 8,
+           'pin_memory': True}
+    )
+
     if args.arch == 'stylegan2':
         from model import Generator, Discriminator
 
@@ -540,8 +550,9 @@ if __name__ == "__main__":
     generator = Generator(
         args.size, gene_num, args.latent, args.kernel_size, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
+    label_num = dataset._n_classes if args.meta_use else 0
     discriminator = Discriminator(
-        args.size, channel_multiplier=args.channel_multiplier, img_chn=img_chn
+        args.size, label_num, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
     g_ema = Generator(
         args.size, gene_num, args.latent, args.kernel_size, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
@@ -596,16 +607,6 @@ if __name__ == "__main__":
             output_device=args.local_rank,
             broadcast_buffers=False,
         )
-
-    dataset = STDataset(args.data, args.gene, transform=transform, split_scheme=args.split_scheme)
-    loader = data.DataLoader(
-        dataset,
-        batch_size=args.batch,
-        sampler=data_sampler(dataset, shuffle=True, distributed=args.distributed),
-        **{'drop_last': True,
-           'num_workers': 8,
-           'pin_memory': True}
-    )
 
     if get_rank() == 0 and wandb is not None and args.wandb:
         wandb.init(project="stylegan 2")

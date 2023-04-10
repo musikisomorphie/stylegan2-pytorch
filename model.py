@@ -10,6 +10,8 @@ from torch.autograd import Function
 
 from op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d, conv2d_gradfix
 
+import numpy as np
+
 
 class PixelNorm(nn.Module):
     def __init__(self):
@@ -531,8 +533,9 @@ class Generator(nn.Module):
             latent = self.style(styles[0]).unsqueeze(1)
             latent = latent.repeat(1, self.n_latent, 1)
             if self.gene_dim > 0:
-                drives = self.drive(styles[1]).split(self.kernel_size ** 2, 
-                                                     dim=-1)
+                drives = self.drive(styles[1][:, :self.gene_dim])
+                drives = drives.split(self.kernel_size ** 2, 
+                                      dim=-1)
             else:
                 drives = [None for _ in range(self.n_latent)]
 
@@ -635,7 +638,7 @@ class ResBlock(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, size, channel_multiplier=2, blur_kernel=[1, 3, 3, 1], img_chn=3):
+    def __init__(self, size, cdim=0, channel_multiplier=2, blur_kernel=[1, 3, 3, 1], img_chn=3):
         super().__init__()
 
         channels = {
@@ -649,6 +652,10 @@ class Discriminator(nn.Module):
             512: 32 * channel_multiplier,
             1024: 16 * channel_multiplier,
         }
+        self.cdim = cdim
+        if self.cdim > 0:
+            self.label_embed = EqualLinear(cdim, channels[128])
+            self.pixel_norm = PixelNorm()
 
         convs = [ConvLayer(img_chn, channels[size], 1)]
 
@@ -668,13 +675,14 @@ class Discriminator(nn.Module):
         self.stddev_group = 4
         self.stddev_feat = 1
 
+        odim = channels[128] if self.cdim > 0 else 1 
         self.final_conv = ConvLayer(in_channel + 1, channels[4], 3)
         self.final_linear = nn.Sequential(
             EqualLinear(channels[4] * 4 * 4, channels[4], activation="fused_lrelu"),
-            EqualLinear(channels[4], 1),
+            EqualLinear(channels[4], odim),
         )
 
-    def forward(self, input):
+    def forward(self, input, labels=None):
         out = self.convs(input)
 
         batch, channel, height, width = out.shape
@@ -691,6 +699,10 @@ class Discriminator(nn.Module):
 
         out = out.view(batch, -1)
         out = self.final_linear(out)
+        if self.cdim > 0:
+            # get the labels that appended to gene expr
+            labels = self.pixel_norm(self.label_embed(labels[:, -self.cdim:]))
+            out = torch.sum(out*labels, dim=1, keepdim=True) / np.sqrt(out.shape[1])
 
         return out
 
