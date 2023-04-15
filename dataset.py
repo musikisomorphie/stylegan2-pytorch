@@ -1,4 +1,3 @@
-from io import BytesIO
 import cv2
 import lmdb
 import torch
@@ -9,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from PIL import Image
+from io import BytesIO
 from pathlib import Path
 from torchvision import transforms
 from torch.utils.data import Dataset
@@ -61,46 +61,6 @@ class MultiResolutionDataset(Dataset):
         img = self.transform(img)
 
         return img
-
-
-class SODataset(Dataset):
-    def __init__(self, data, gene, path, transform):
-        if data == 'CosMx':
-            self.ext = 'flo.png'
-        elif data == 'Xenium':
-            self.ext = 'hne.png'
-        elif data == 'Visium':
-            self.ext = '.npz'
-
-        self.data = data
-        self.gene = gene
-        self.paths = list(Path(path).rglob(f'*{self.ext}'))
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.paths)
-
-    def __getitem__(self, index):
-        if self.data in ('CosMx', 'Xenium'):
-            img = Image.open(str(self.paths[index]))
-            img = np.array(img)
-            img = self.transform(img)
-            rna = str(self.paths[index]).replace(self.ext, 'rna.npz')
-            rna = sparse.load_npz(rna).sum((0, 1)).todense()
-            rna = torch.from_numpy(rna).to(img).float()
-            if self.data == 'Xenium':
-                rna = rna[:self.gene]
-        elif self.data == 'Visium':
-            npz = np.load(str(self.paths[index]))
-            img = npz['img'][96:-96, 96:-96]
-            img = Image.fromarray(img)
-            # the resize step is inspired by clean-FID
-            img = img.resize((128, 128), resample=Image.Resampling.BICUBIC)
-            img = np.asarray(img).clip(0, 255).astype(np.uint8)
-            img = self.transform(img)
-            rna = npz['key_melanoma_marker']
-            rna = torch.from_numpy(rna).to(img).float()
-        return img, rna
 
 
 class STDataset(WILDSDataset):
@@ -188,7 +148,8 @@ class STDataset(WILDSDataset):
 
             self._metadata_fields = [split_scheme, ]
             self._metadata_array = list(zip(*[self._split_array.tolist()]))
-            self._y_array = torch.LongTensor((_y + 1) // 2 if len(t_nam) == 2 else _y)
+            self._y_array = torch.LongTensor(
+                (_y + 1) // 2 if len(t_nam) == 2 else _y)
             self._y_size, self._n_classes = 1, len(t_nam)
         else:
             # add dummy metadata amd labels
@@ -214,6 +175,7 @@ class STDataset(WILDSDataset):
                 if self._dataset_name in ('CosMx', 'Xenium'):
                     gene_expr = gene_expr.sum((0, 1)).todense()
                     gene_expr = gene_expr.astype(np.int16)
+
         return img, gene_expr
 
     def run_input(self, img_pth, gene_pth, idx):
@@ -224,24 +186,47 @@ class STDataset(WILDSDataset):
         if self.gene_spa:
             assert self._dataset_name in ('CosMx', 'Xenium')
             gene_expr = sparse.load_npz(gene_pth)
-
+            # img = torch.from_numpy(gene_expr.todense().transpose((2, 0, 1)))
             if self.trans is not None:
-                img, gene_expr == self.trans([img, gene_expr])
-            else:
-                gene_expr = gene_expr.todense().transpose((2, 0, 1))
-                gene_expr = torch.from_numpy(gene_expr).contiguous().float()
+                img, gene_expr = self.trans([img, gene_expr])
+
+            # # naive init sparse tensor, incompatible to spconv
+            # i = torch.LongTensor(np.array(gene_expr.coords))
+            # v = torch.FloatTensor(np.array(gene_expr.data))
+            # s = torch.Size(gene_expr.shape)
+            # gene_expr = torch.sparse.FloatTensor(i, v, s)
+
+            # init sparse tensor compatible to spconv
+            i = torch.LongTensor(np.array(gene_expr.coords[:-1]))
+            # create channel matrix indices
+            c = gene_expr.coords[-1]
+            r = list(range(len(c)))
+            v = torch.zeros([len(c), self.gene_num]).float()
+            # the data v is nothing but the matrix that
+            # each row correspondes to the gene_num of readouts at certain spatial loc
+            v[r, c] = torch.from_numpy(gene_expr.data.astype(np.float32))
+            s = torch.Size(gene_expr.shape)
+            gene_expr = torch.sparse_coo_tensor(i, v, s)
+
+            # gcmp = torch.from_numpy(self.expr_img[idx]).contiguous().float()
+            # gcmp1 = gene_expr.to_dense().sum((0, 1))
+            # gcmp2 = gene_expr.coalesce().values().sum((0))
+            # assert (gcmp == gcmp1).all() and (gcmp == gcmp2).all()
+            # assert((img == gene_expr.to_dense().permute((2, 0, 1))).all())
+
+            return img, gene_expr
         else:
             gene_expr = self.expr_img[idx]
             gene_expr = torch.from_numpy(gene_expr).contiguous().float()
 
             # append label for stylegan3 conditional training
-            label = torch.nn.functional.one_hot(self._y_array[idx], 
+            label = torch.nn.functional.one_hot(self._y_array[idx],
                                                 num_classes=self._n_classes)
             gene_expr = torch.cat([gene_expr, label])
 
             if self.trans is not None:
                 img = self.trans(img)
-        return img, gene_expr
+            return img, gene_expr
 
     def run_debug(self, gene_expr, gene_pth, idx):
         out = sparse.load_npz(gene_pth).todense()
