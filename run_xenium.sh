@@ -7,7 +7,7 @@ python train.py \
     --size=128 \
     --channel=-1 \
     --gene_use \
-    --split_label=kmeans_3_clusters \
+    --split_label=kmeans_2_clusters \
     --check_save=Data/Xenium/GAN/g0/
 
 python train.py \
@@ -19,5 +19,5 @@ python train.py \
     --size=128 \
     --channel=-1 \
     --gene_use \
-    --split_label=kmeans_3_clusters \
+    --split_label=kmeans_2_clusters \
     --check_save=Data/Xenium/GAN/g1/
