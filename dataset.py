@@ -73,6 +73,7 @@ class STDataset(WILDSDataset):
                  split_scheme=None,
                  debug=False,
                  seed=None,
+                 split_label=None,
                  # compatible to stylegan3
                  resolution=128,
                  num_channels=3,
@@ -105,7 +106,7 @@ class STDataset(WILDSDataset):
                                         False)
 
         # Prep subsetdata for downstream analysis
-        self.prep_split(df, split_scheme)
+        self.prep_split(df, split_scheme, split_label)
 
     def prep_gene(self, gene_pth, load_name=True):
         if not self.debug:
@@ -131,31 +132,35 @@ class STDataset(WILDSDataset):
 
         return _expr
 
-    def prep_split(self, df, split_scheme):
-        if split_scheme is not None:
+    def prep_split(self, df, split_scheme, split_label):
+        if split_scheme:
             t_nam, t_cnt = np.unique(df[split_scheme].values,
                                      return_counts=True)
             # if the counts have repetitive values, then it cannot be used
             # for stratify subset, thus add another _cond_dct
             self._cond_dct = dict(zip(t_nam, t_cnt))
-            if len(t_nam) == 2:
-                # this is for GAN training when including dichotomy domain label
-                self._split_dict = dict(zip(t_nam, [-1, 1]))
-            else:
-                self._split_dict = dict(zip(t_nam, list(range(len(t_nam)))))
-            _y = df[split_scheme].map(self._split_dict).values
-            self._split_array = _y
-
-            self._metadata_fields = [split_scheme, ]
-            self._metadata_array = list(zip(*[self._split_array.tolist()]))
-            self._y_array = torch.LongTensor(
-                (_y + 1) // 2 if len(t_nam) == 2 else _y)
-            self._y_size, self._n_classes = 1, len(t_nam)
+            self._split_dict = dict(zip(t_nam, list(range(len(t_nam)))))
+            self._split_array = df[split_scheme].map(self._split_dict).values
         else:
-            # add dummy metadata amd labels
-            self._metadata_array = [[0] for _ in range(len(self._input_array))]
-            self._y_array = torch.ones([len(self._input_array)]).long()
-            self._y_size, self._n_classes = 1, 2
+            # add dummy metadata
+            self._cond_dct = {None: len(self._input_array)}
+            self._split_dict = {None: 0}
+            self._split_array = np.zeros(len(self._input_array))
+
+        if split_label:
+            # prep the labels for cond GAN training
+            t_nam, t_cnt = np.unique(df[split_label].values,
+                                     return_counts=True)
+            m_dct = dict(zip(t_nam, list(range(len(t_nam)))))
+            self._y_array = torch.LongTensor(df[split_label].map(m_dct).values)
+            self._n_classes = len(t_nam)
+            print(t_nam, t_cnt, self._n_classes)
+        else:
+            self._y_array = torch.zeros(len(self._input_array))
+            self._n_classes = 0
+
+        self._y_size = 1
+        self._metadata_array = list(zip(*[self._split_array.tolist()]))
 
     def get_input(self, idx):
         img_pth = self.img_dir / self._input_array[idx]
@@ -219,10 +224,11 @@ class STDataset(WILDSDataset):
             gene_expr = self.expr_img[idx]
             gene_expr = torch.from_numpy(gene_expr).contiguous().float()
 
-            # append label for stylegan3 conditional training
-            label = torch.nn.functional.one_hot(self._y_array[idx],
-                                                num_classes=self._n_classes)
-            gene_expr = torch.cat([gene_expr, label])
+            if self._n_classes > 0:
+                # append label for stylegan conditional training
+                label = torch.nn.functional.one_hot(self._y_array[idx],
+                                                    num_classes=self._n_classes)
+                gene_expr = torch.cat([gene_expr, label])
 
             if self.trans is not None:
                 img = self.trans(img)

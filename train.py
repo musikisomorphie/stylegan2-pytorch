@@ -3,12 +3,10 @@ import math
 import random
 import os
 
-import numpy as np
 import torch
 from torch import nn, autograd, optim
 from torch.nn import functional as F
 from torch.utils import data
-import torch.distributed as dist
 from torchvision import utils
 from tqdm import tqdm
 
@@ -51,23 +49,18 @@ def linspace(start, stop, num):
 
     return out
 
-def mixing_gene(gene, meta, 
-                meta_use=False, mix=False, fix_noise=False):
+def mixing_gene(gene, mix=False, fix_noise=False):
     sz = gene.shape[0]
     idx = torch.randperm(sz)
     if mix:
         gene = gene[idx]
         gene = (gene[:sz//2] + gene[sz//2:]) / 2
-        meta = meta[idx]
-        meta = (meta[:sz//2] + meta[sz//2:]) / 2
     if fix_noise:
         noise = torch.randn(512)
         noise = noise.unsqueeze(0).repeat(gene.shape[0], 1)
     else:
         noise = torch.randn(gene.shape[0], 512)
     noise = noise.to(gene)
-    if meta_use:
-        noise += meta
     return [noise, gene]
 
 
@@ -206,16 +199,15 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
 
             break
 
-        (real_img, real_gene), _, real_meta = next(loader)
+        (real_img, real_gene), _, _ = next(loader)
         real_img = (real_img / 127.5 - 1).to(device)
         real_gene = real_gene.to(device)
-        real_meta = real_meta[0].unsqueeze(-1).to(device)
 
         requires_grad(generator, False)
         requires_grad(discriminator, True)
 
         # noise = mixing_noise(args.batch, args.latent, args.mixing, device)
-        noise = mixing_gene(real_gene, real_meta, args.meta_use)
+        noise = mixing_gene(real_gene)
         fake_img, _ = generator(noise)
 
         if args.augment:
@@ -266,7 +258,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(discriminator, False)
 
         # noise = mixing_noise(args.batch, args.latent, args.mixing, device)
-        noise = mixing_gene(real_gene, real_meta, args.meta_use)
+        noise = mixing_gene(real_gene)
         fake_img, _ = generator(noise)
 
         if args.augment:
@@ -286,7 +278,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         if g_regularize:
             # path_batch_size = max(1, args.batch // args.path_batch_shrink)
             # noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
-            noise = mixing_gene(real_gene, real_meta, args.meta_use, True)
+            noise = mixing_gene(real_gene, mix=True)
             fake_img, latents = generator(noise, return_latents=True)
 
             path_loss, mean_path_length, path_lengths = g_path_regularize(
@@ -350,7 +342,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
             if (i + 1) % 10000 == 0:
                 with torch.no_grad():
                     g_ema.eval()
-                    noise = mixing_gene(real_gene, real_meta, args.meta_use, fix_noise=True)
+                    noise = mixing_gene(real_gene, fix_noise=True)
                     sample, _ = g_ema(noise, randomize_noise=False)
                     if 'rxrx19' in args.path:
                         if args.channel == -1:
@@ -405,8 +397,8 @@ if __name__ == "__main__":
     parser.add_argument("--data", type=str, help="name of the dataset")
     parser.add_argument("--gene", type=int, help="num of the genes")
     parser.add_argument("--gene_use", action="store_true", help="whether to use gene expr")
-    parser.add_argument("--meta_use", action="store_true", help="whether to use meta info from split_scheme")
-    parser.add_argument("--split_scheme", type=str, help="split to subset for adding meta info to noise")
+    parser.add_argument("--split_scheme", type=str, help="split to subset (may not be useful)")
+    parser.add_argument("--split_label", type=str, help="split data for cond GAN training")
     parser.add_argument("--kernel_size", type=int, default=3)
     parser.add_argument('--arch', type=str, default='stylegan2', help='model architectures (stylegan2 | swagan)')
     parser.add_argument(
@@ -524,7 +516,7 @@ if __name__ == "__main__":
 
     args.start_iter = 0
 
-    dataset = STDataset(args.data, args.gene, transform=transform, split_scheme=args.split_scheme)
+    dataset = STDataset(args.data, args.gene, transform=transform, split_label=args.split_label)
     loader = data.DataLoader(
         dataset,
         batch_size=args.batch,
@@ -550,9 +542,8 @@ if __name__ == "__main__":
     generator = Generator(
         args.size, gene_num, args.latent, args.kernel_size, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
-    label_num = dataset._n_classes if args.meta_use else 0
     discriminator = Discriminator(
-        args.size, label_num, channel_multiplier=args.channel_multiplier, img_chn=img_chn
+        args.size, dataset._n_classes, channel_multiplier=args.channel_multiplier, img_chn=img_chn
     ).to(device)
     g_ema = Generator(
         args.size, gene_num, args.latent, args.kernel_size, args.n_mlp, channel_multiplier=args.channel_multiplier, img_chn=img_chn
@@ -612,7 +603,7 @@ if __name__ == "__main__":
         wandb.init(project="stylegan 2")
 
     check_save = Path(args.check_save)
-    check_save = check_save.parent / f'{check_save.name}_{args.gene_use}_{args.meta_use}_{args.kernel_size}'
+    check_save = check_save.parent / f'{check_save.name}_{args.gene_use}_{args.split_label}_{args.kernel_size}'
     check_save.mkdir(parents=True, exist_ok=True)
     (check_save / 'checkpoint').mkdir(parents=True, exist_ok=True)
     (check_save / 'sample').mkdir(parents=True, exist_ok=True)

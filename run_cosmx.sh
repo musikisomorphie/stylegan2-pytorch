@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0 taskset -c 0-31 python train.py \
+python train.py \
     Data/CosMx/GAN/crop \
     --data=CosMx \
     --gene=1000 \
@@ -7,9 +7,10 @@ CUDA_VISIBLE_DEVICES=0 taskset -c 0-31 python train.py \
     --size=128 \
     --channel=-1 \
     --gene_use \
+    --split_label=slide_ID_numeric \
     --check_save=Data/CosMx/GAN/g0/
     
-CUDA_VISIBLE_DEVICES=0 taskset -c 0-31 python train.py \
+python train.py \
     Data/CosMx/GAN/crop \
     --data=CosMx \
     --gene=1000 \
@@ -17,6 +18,6 @@ CUDA_VISIBLE_DEVICES=0 taskset -c 0-31 python train.py \
     --iter=800000 \
     --size=128 \
     --channel=-1 \
-    --split_scheme=slide_ID_numeric \
-    --gene_use --meta_use \
-    --check_save=Data/CosMx/GAN/g0/
+    --gene_use \
+    --split_label=slide_ID_numeric \
+    --check_save=Data/CosMx/GAN/g1/
