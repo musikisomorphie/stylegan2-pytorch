@@ -257,7 +257,9 @@ class ModulatedConv2d(nn.Module):
 
             return out
 
-        style = self.modulation(style).view(batch, 1, in_channel, 1, 1)
+        style = self.modulation(style)
+        style = style * torch.rsqrt(style.pow(2).sum(1, keepdim=True) + 1e-8)
+        style = style.view(batch, 1, in_channel, 1, 1)
         weight = self.scale * self.weight * style
         if drive is not None:
             drive = drive.view(batch, 1, 1, self.kernel_size, self.kernel_size)

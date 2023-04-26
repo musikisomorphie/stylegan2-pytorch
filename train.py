@@ -371,7 +371,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                     )
 
 
-            snap = 50000 if args.data == 'Visium' else 100000
+            snap = 50000 if args.data == 'Visium' else 50000
             if (i + 1) % snap == 0:
                 torch.save(
                     {

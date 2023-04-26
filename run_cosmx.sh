@@ -8,7 +8,7 @@ python train.py \
     --channel=-1 \
     --gene_use \
     --split_label=slide_ID_numeric \
-    --check_save=Data/CosMx/GAN/g0/
+    --check_save=Data/CosMx/GAN/gl0/
     
 python train.py \
     Data/CosMx/GAN/crop \
@@ -20,4 +20,4 @@ python train.py \
     --channel=-1 \
     --gene_use \
     --split_label=slide_ID_numeric \
-    --check_save=Data/CosMx/GAN/g1/
+    --check_save=Data/CosMx/GAN/gl1/

@@ -8,7 +8,7 @@ python train.py \
     --channel=-1 \
     --gene_use \
     --split_label=kmeans_2_clusters \
-    --check_save=Data/Xenium/GAN/g0/
+    --check_save=Data/Xenium/GAN/gl0/
 
 python train.py \
    Data/Xenium/GAN/crop \
@@ -20,4 +20,4 @@ python train.py \
     --channel=-1 \
     --gene_use \
     --split_label=kmeans_2_clusters \
-    --check_save=Data/Xenium/GAN/g1/
+    --check_save=Data/Xenium/GAN/gl1/
