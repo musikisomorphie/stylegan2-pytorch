@@ -184,8 +184,10 @@ class STDataset(WILDSDataset):
         return img, gene_expr
 
     def run_input(self, img_pth, gene_pth, idx):
-        img = np.array(Image.open(img_pth))
-        img = img.transpose((2, 0, 1))
+        img = Image.open(img_pth)
+        if img.width == 64:
+            img = img.resize((128, 128))
+        img = np.array(img).transpose((2, 0, 1))
         img = torch.from_numpy(img).contiguous().float()
 
         if self.gene_spa:
