@@ -263,7 +263,7 @@ class ModulatedConv2d(nn.Module):
         weight = self.scale * self.weight * style
         if drive is not None:
             if drive.shape[1] == self.style_dim:
-                d_out = self.modul(drive).view(batch, self.out_channel, 1, 1)
+                d_out = self.modul(drive).view(batch, self.out_channel, 1, 1, 1)
                 weight = weight * d_out
             else:
                 d_out, d_ker = drive.split([self.style_dim, self.kernel_size ** 2], 1)
