@@ -189,6 +189,7 @@ class ModulatedConv2d(nn.Module):
         self.out_channel = out_channel
         self.upsample = upsample
         self.downsample = downsample
+        self.style_dim = style_dim
 
         if upsample:
             factor = 2
@@ -215,6 +216,7 @@ class ModulatedConv2d(nn.Module):
         )
 
         self.modulation = EqualLinear(style_dim, in_channel, bias_init=1)
+        self.modul = EqualLinear(style_dim, out_channel, bias_init=1)
 
         self.demodulate = demodulate
         self.fused = fused
@@ -257,13 +259,17 @@ class ModulatedConv2d(nn.Module):
 
             return out
 
-        style = self.modulation(style)
-        style = style * torch.rsqrt(style.pow(2).sum(1, keepdim=True) + 1e-8)
-        style = style.view(batch, 1, in_channel, 1, 1)
+        style = self.modulation(style).view(batch, 1, in_channel, 1, 1)
         weight = self.scale * self.weight * style
         if drive is not None:
-            drive = drive.view(batch, 1, 1, self.kernel_size, self.kernel_size)
-            weight *= drive
+            if drive.shape[1] == self.in_channel:
+                d_out = self.modul(drive).view(batch, self.out_channel, 1, 1)
+                weight = weight * d_out
+            else:
+                d_out, d_ker = drive.split([self.style_dim, self.kernel_size ** 2], 1)
+                d_ker = d_ker.view(batch, 1, 1, self.kernel_size, self.kernel_size)
+                d_out = self.modul(d_out).view(batch, self.out_channel, 1, 1, 1)
+                weight = weight * d_out * d_ker
 
         if self.demodulate:
             demod = torch.rsqrt(weight.pow(2).sum([2, 3, 4]) + 1e-8)
@@ -489,7 +495,7 @@ class Generator(nn.Module):
             layers = []
             for i in range(n_mlp):
                 in_dim = self.gene_dim if i == 0 else style_dim
-                out_dim = self.n_latent * (kernel_size ** 2) if i == n_mlp - 1 else style_dim
+                out_dim = self.n_latent * (kernel_size ** 2 + style_dim) if i == n_mlp - 1 else style_dim
                 layers.append(
                     EqualLinear(
                         in_dim, out_dim, lr_mul=lr_mlp, activation="fused_lrelu"
@@ -536,7 +542,7 @@ class Generator(nn.Module):
             latent = latent.repeat(1, self.n_latent, 1)
             if self.gene_dim > 0:
                 drives = self.drive(styles[1][:, :self.gene_dim])
-                drives = drives.split(self.kernel_size ** 2, 
+                drives = drives.split(drives.shape[1] // self.n_latent, 
                                       dim=-1)
             else:
                 drives = [None for _ in range(self.n_latent)]

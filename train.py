@@ -49,12 +49,14 @@ def linspace(start, stop, num):
 
     return out
 
-def mixing_gene(gene, mix=False, fix_noise=False):
+def mixing_gene(gene, mix=False, fix_noise=False, gene_noise=False):
     sz = gene.shape[0]
     idx = torch.randperm(sz)
     if mix:
         gene = gene[idx]
         gene = (gene[:sz//2] + gene[sz//2:]) / 2
+    if gene_noise:
+        gene += torch.rand_like(gene)
     if fix_noise:
         noise = torch.randn(512)
         noise = noise.unsqueeze(0).repeat(gene.shape[0], 1)
@@ -207,7 +209,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(discriminator, True)
 
         # noise = mixing_noise(args.batch, args.latent, args.mixing, device)
-        noise = mixing_gene(real_gene)
+        noise = mixing_gene(real_gene, gene_noise=args.gene_noise)
         fake_img, _ = generator(noise)
 
         if args.augment:
@@ -258,7 +260,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(discriminator, False)
 
         # noise = mixing_noise(args.batch, args.latent, args.mixing, device)
-        noise = mixing_gene(real_gene)
+        noise = mixing_gene(real_gene, gene_noise=args.gene_noise)
         fake_img, _ = generator(noise)
 
         if args.augment:
@@ -278,7 +280,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         if g_regularize:
             # path_batch_size = max(1, args.batch // args.path_batch_shrink)
             # noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
-            noise = mixing_gene(real_gene, mix=True)
+            noise = mixing_gene(real_gene, mix=True, gene_noise=args.gene_noise)
             fake_img, latents = generator(noise, return_latents=True)
 
             path_loss, mean_path_length, path_lengths = g_path_regularize(
@@ -397,6 +399,7 @@ if __name__ == "__main__":
     parser.add_argument("--data", type=str, help="name of the dataset")
     parser.add_argument("--gene", type=int, help="num of the genes")
     parser.add_argument("--gene_use", action="store_true", help="whether to use gene expr")
+    parser.add_argument("--gene_noise", action="store_true", help="whether to add rand noise to gene")
     parser.add_argument("--split_scheme", type=str, help="split to subset (may not be useful)")
     parser.add_argument("--split_label", type=str, help="split data for cond GAN training")
     parser.add_argument("--kernel_size", type=int, default=3)
@@ -603,7 +606,7 @@ if __name__ == "__main__":
         wandb.init(project="stylegan 2")
 
     check_save = Path(args.check_save)
-    check_save = check_save.parent / f'{check_save.name}_{args.gene_use}_{args.split_label}_{args.kernel_size}'
+    check_save = check_save.parent / f'{check_save.name}_{args.gene_use}_{args.gene_noise}_{args.split_label}_{args.kernel_size}'
     check_save.mkdir(parents=True, exist_ok=True)
     (check_save / 'checkpoint').mkdir(parents=True, exist_ok=True)
     (check_save / 'sample').mkdir(parents=True, exist_ok=True)
