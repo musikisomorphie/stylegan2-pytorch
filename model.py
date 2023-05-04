@@ -534,7 +534,7 @@ class Generator(nn.Module):
             latent = latent.repeat(1, self.n_latent, 1)
             if self.gene_dim > 0:
                 drives = self.drive(styles[1][:, :self.gene_dim])
-                drives = drives.split(self.kernel_size ** 2, 
+                drives = drives.split(drives.shape[-1] // self.n_latent, 
                                       dim=-1)
             else:
                 drives = [None for _ in range(self.n_latent)]
