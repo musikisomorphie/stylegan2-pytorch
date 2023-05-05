@@ -215,6 +215,8 @@ class ModulatedConv2d(nn.Module):
         )
 
         self.modulation = EqualLinear(style_dim, in_channel, bias_init=1)
+        self.modul = EqualLinear(style_dim // 4, kernel_size ** 2, 
+                                 bias_init=1, activation="fused_lrelu")
 
         self.demodulate = demodulate
         self.fused = fused
@@ -260,7 +262,7 @@ class ModulatedConv2d(nn.Module):
         style = self.modulation(style).view(batch, 1, in_channel, 1, 1)
         weight = self.scale * self.weight * style
         if drive is not None:
-            drive = drive.view(batch, 1, 1, self.kernel_size, self.kernel_size)
+            drive = self.modul(drive).view(batch, 1, 1, self.kernel_size, self.kernel_size)
             weight *= drive
 
         if self.demodulate:
@@ -428,10 +430,10 @@ class Generator(nn.Module):
         self.channels = {
             4: 512,
             8: 512,
-            16: 512,
-            32: 512,
-            64: 256 * channel_multiplier,
-            128: 128 * channel_multiplier,
+            16: 256,
+            32: 256,
+            64: 128 * channel_multiplier,
+            128: 64 * channel_multiplier,
             256: 64 * channel_multiplier,
             512: 32 * channel_multiplier,
             1024: 16 * channel_multiplier,
@@ -487,7 +489,7 @@ class Generator(nn.Module):
             layers = []
             for i in range(n_mlp):
                 in_dim = self.gene_dim if i == 0 else style_dim
-                out_dim = self.n_latent * (kernel_size ** 2) if i == n_mlp - 1 else style_dim
+                out_dim = style_dim // 4 if i == n_mlp - 1 else style_dim
                 layers.append(
                     EqualLinear(
                         in_dim, out_dim, lr_mul=lr_mlp, activation="fused_lrelu"
@@ -530,12 +532,11 @@ class Generator(nn.Module):
         randomize_noise=True,
     ):
         if not input_is_latent:
-            latent = self.style(styles[0]).unsqueeze(1)
+            latent = self.style(styles[0])[:, None]
             latent = latent.repeat(1, self.n_latent, 1)
             if self.gene_dim > 0:
                 drives = self.drive(styles[1][:, :self.gene_dim])
-                drives = drives.split(drives.shape[-1] // self.n_latent, 
-                                      dim=-1)
+                drives = drives[None].repeat(self.n_latent, 1, 1)
             else:
                 drives = [None for _ in range(self.n_latent)]
 
