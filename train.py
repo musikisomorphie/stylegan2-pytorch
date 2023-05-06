@@ -609,4 +609,5 @@ if __name__ == "__main__":
     check_save.mkdir(parents=True, exist_ok=True)
     (check_save / 'checkpoint').mkdir(parents=True, exist_ok=True)
     (check_save / 'sample').mkdir(parents=True, exist_ok=True)
+    print(generator)
     train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device, check_save)
