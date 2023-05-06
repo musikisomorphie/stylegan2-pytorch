@@ -214,9 +214,12 @@ class ModulatedConv2d(nn.Module):
             torch.randn(1, out_channel, in_channel, kernel_size, kernel_size)
         )
 
-        self.modulation = EqualLinear(style_dim, in_channel, bias_init=1)
-        self.modul = EqualLinear(style_dim // 4, kernel_size ** 2, 
-                                 bias_init=1, activation="fused_lrelu")
+        # if not ToRGB layer
+        if out_channel > 8:
+            self.modulation = EqualLinear(style_dim, in_channel, bias_init=1)
+            self.modul = EqualLinear(style_dim // 4, out_channel)
+        else:
+            self.modul = EqualLinear(style_dim // 4, in_channel)
 
         self.demodulate = demodulate
         self.fused = fused
@@ -259,10 +262,16 @@ class ModulatedConv2d(nn.Module):
 
             return out
 
-        style = self.modulation(style).view(batch, 1, in_channel, 1, 1)
-        weight = self.scale * self.weight * style
+        weight = self.scale * self.weight
+        if self.out_channel > 8:
+            style = self.modulation(style).view(batch, 1, in_channel, 1, 1)
+            weight *= style
         if drive is not None:
-            drive = self.modul(drive).view(batch, 1, 1, self.kernel_size, self.kernel_size)
+            drive = self.modul(drive)
+            if self.out_channel > 8:
+                drive = drive.softmax(dim=-1).view(batch, self.out_channel, 1, 1, 1)
+            else:
+                drive = drive.view(batch, 1, self.in_channel, 1, 1)
             weight *= drive
 
         if self.demodulate:
@@ -430,10 +439,10 @@ class Generator(nn.Module):
         self.channels = {
             4: 512,
             8: 512,
-            16: 256,
-            32: 256,
-            64: 128 * channel_multiplier,
-            128: 64 * channel_multiplier,
+            16: 512,
+            32: 512,
+            64: 256 * channel_multiplier,
+            128: 128 * channel_multiplier,
             256: 64 * channel_multiplier,
             512: 32 * channel_multiplier,
             1024: 16 * channel_multiplier,
