@@ -265,7 +265,7 @@ class ModulatedConv2d(nn.Module):
         weight = self.scale * self.weight
         if self.out_channel > 8:
             style = self.modulation(style).view(batch, 1, in_channel, 1, 1)
-            weight *= style
+            weight = weight * style
         if drive is not None:
             drive = self.modul(drive)
             if self.out_channel > 8:
